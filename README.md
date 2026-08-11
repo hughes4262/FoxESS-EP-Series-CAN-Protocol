@@ -4,6 +4,8 @@ Reverse-engineered documentation and a standalone battery-side CAN implementatio
 
 The protocol represents one aggregate virtual EP battery using generic Battery-Emulator datalayer information. Its purpose is to let supported alternative high-voltage batteries provide the live state, limits, status, capacity, energy and model information expected by a compatible FoxESS inverter.
 
+> **Built on Battery-Emulator:** This protocol was developed and hardware-tested using [Dala's Battery-Emulator](https://github.com/dalathegreat/Battery-Emulator) as the underlying battery integration and CAN framework. Many thanks to Dala and the Battery-Emulator contributors for creating and maintaining the project that made this work possible.
+
 > [!NOTE]
 > This is independent community reverse-engineering work. It is not official FoxESS documentation and is not affiliated with or endorsed by FoxESS.
 
