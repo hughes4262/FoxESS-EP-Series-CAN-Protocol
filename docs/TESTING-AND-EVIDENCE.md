@@ -251,23 +251,20 @@ The following are genuine limits of the current evidence:
 
 These limitations are evidence boundaries, not a development roadmap.
 
-## Reproducibility and evidence preservation
+## Evidence preservation for future contributions
 
-Public evidence should be preserved so that another contributor can distinguish an original observation from a later interpretation.
+When adding new captures, screenshots or test results to this repository, preserve enough provenance for another contributor to distinguish the original observation from later interpretation.
 
 - Preserve original CAN captures unchanged.
-- Retain original filenames and capture context where practical.
-- Keep raw captures separate from filtered traces, decoded tables, scripts and interpretation notes.
-- Record the physical battery arrangement, inverter model, relevant firmware versions, emulator hardware and protocol checkpoint when known.
-- Record whether the battery was starting, idle, charging, discharging or transitioning, together with SOC and approximate power where available.
-- Keep native EP12 observations separate from values deliberately transmitted by Battery-Emulator.
-- Label integrations, ratios and threshold calculations as derived work rather than raw capture values.
-- Do not edit raw evidence to make it fit a later interpretation; correct the interpretation instead.
-- Preserve screenshots in their original form and describe only the values and states they visibly demonstrate.
-- Do not imply that an app screenshot proves an unrelated CAN field or a hidden internal algorithm.
-- Do not distribute proprietary Fox firmware binaries. Publish only the minimum derived findings required to explain the protocol evidence.
+- Keep raw captures separate from filtered traces, decoded tables and derived notes.
+- Record the inverter, battery arrangement, relevant firmware versions, emulator hardware and protocol version when known.
+- Record the operating state and approximate SOC/power where useful.
+- Keep genuine native EP12 observations separate from values transmitted by Battery-Emulator.
+- Clearly label calculations, ratios and inferred thresholds as derived analysis rather than raw observations.
+- Preserve screenshots in their original form and claim only what they visibly demonstrate.
+- Do not distribute proprietary FoxESS firmware binaries; publish only derived interoperability findings.
 
-Where a precise date, firmware version or test condition was not retained, the public record should say that it is unknown rather than reconstructing it from memory.
+If provenance such as a firmware version or exact test condition is unknown, record it as unknown rather than reconstructing it from memory.
 
 ## Evidence summary
 
