@@ -148,7 +148,7 @@ The extended group mixes installed-capacity descriptions, static model data, liv
 | `0x1904` | Extreme-measurement locations | Two cell-extreme positions and two temperature/location-style codes | Structure **Strongly inferred**; raw behaviour **Capture-confirmed**; order/packing **Unresolved** |
 | `0x1905` | Compact family/model-state summary | Family-specific reference, several coarse state values and a model-state byte | Strong associations with documented exceptions; official names **Unresolved** |
 | `0x1906` | Model parameters A and B | Two slowly changing per-unit/model quantities separated by zero words | Structure and values **Capture-confirmed** and **Firmware-supported**; physical meanings **Unresolved** |
-| `0x1907` | High-resolution model state | Two 32-bit battery-state slots, with the second feeding `0x1905` byte 5 | Structure **Firmware-supported**; relationship **Capture-confirmed**; first meaning **Unresolved** |
+| `0x1907` | High-resolution model state | Two 32-bit battery-state slots, with the second strongly associated with `0x1905` byte 5 | Structure **Firmware-supported**; association capture-backed with a documented exception; first meaning **Unresolved** |
 | `0x1908` | Expanded status/model container | Likely flags/subfields in bytes 0–3 plus a second model quantity | Native forms **Capture-confirmed**; internal flags and second-field semantic **Unresolved** |
 | `0x1909` | Present all-zero slot | Zero-filled final frame in the extended group | Wire behaviour **Capture-confirmed**; purpose **Unresolved** |
 
@@ -299,7 +299,7 @@ The manager-supported layout is two 32-bit slots:
 | Bytes | Best-supported role | Status |
 | --- | --- | --- |
 | 0–3 | First high-resolution voltage/model-sensitive battery-state quantity | Structure **Firmware-supported**; scale **Strongly inferred**; exact semantic **Unresolved** |
-| 4–7 | Second high-resolution SOC/SOE-style battery-state quantity | Structure **Firmware-supported**; 0.1%-style scale and coarse relationship **Capture-confirmed** |
+| 4–7 | Second high-resolution SOC/SOE-style battery-state quantity | Structure **Firmware-supported**; 0.1%-style scale and coarse association capture-backed with a documented exception |
 
 The observed native values occupy the lower active portions of each slot, but the parser boundaries support complete 32-bit fields. The second value has a particularly strong, but not universal, relationship to `0x1905` byte 5:
 

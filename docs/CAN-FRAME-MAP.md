@@ -26,7 +26,7 @@ The evidence labels mean:
 | Label | Meaning in this document |
 |---|---|
 | **Hardware/app-confirmed** | A controlled real inverter, battery, or app test demonstrated the stated behaviour or displayed result. |
-| **Capture-confirmed** | Genuine EP12 traffic directly establishes the byte position, value, transition, relationship, or scale stated. |
+| **Capture-confirmed** | Genuine Fox traffic directly establishes the byte position, value, transition, relationship, or scale stated. |
 | **Firmware-supported** | Manager-firmware analysis supports the field boundary, decoding, or use; the official Fox field name may still be unknown. |
 | **Strongly inferred** | Multiple independent observations support the interpretation, but a decisive native transition or isolated hardware test is still missing. |
 | **Provisional** | A useful implementation choice or working interpretation with limited supporting evidence. It must not be treated as an official Fox definition. |
@@ -403,7 +403,7 @@ v67 intentionally sends a stable captured value rather than reproducing the nati
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
 | 0–3 | `uint32` LE | Best-supported `0.1 %/count` | Mirrors v67's fine SOC value because Battery-Emulator exposes no separate generic voltage/OCV/SOE estimate; zero until capacity model ready; capped at `1000` | First high-resolution, voltage/model-sensitive state estimate | Capture-confirmed structure; Strongly inferred scale; Unresolved exact semantic | Genuine EP12 behaviour indicates this can differ from the second estimate. v67 intentionally mirrors them. |
-| 4–7 | `uint32` LE | `0.1 %/count` | `reported_soc / 10`, zero until capacity model ready, capped at `1000` | Second high-resolution SOC/SOE-like estimate | Capture-confirmed relationship; Firmware-supported | `0x1905` byte 5 is its whole-percent coarse copy. Whether Fox internally calls it SOC, SOE, or another state estimate remains unresolved. |
+| 4–7 | `uint32` LE | `0.1 %/count` | `reported_soc / 10`, zero until capacity model ready, capped at `1000` | Second high-resolution SOC/SOE-like estimate | Field/association Capture-confirmed; boundary Firmware-supported | Usually associated with `0x1905` byte 5 by division by 10, but EP12 Plus has one matched-response exception. Whether Fox internally calls it SOC, SOE, or another state estimate remains unresolved. |
 
 Observed native values occupy the low part of each 32-bit slot; the manager-derived field boundaries are 32-bit. This frame is in main-response batch 4.
 
