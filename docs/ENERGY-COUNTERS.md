@@ -51,7 +51,7 @@ The energy-related frames expose several related but distinct quantities.
 | `0x1878` | 1 | Individual virtual-unit SOC | `1 %/count` | Generic reported SOC divided by 100 | **Capture-confirmed** |
 | `0x1878` | 4–7 | Cumulative absolute energy throughput, `uint32` LE | `1 Wh/count` | charged Wh + discharged Wh | **Capture-confirmed**, **Firmware-supported** |
 | `0x1879` | 0–3 | Cumulative charged capacity, `uint32` LE | `0.1 Ah/count` | `foxess_charged_capacity_dAh` | Charged path **Hardware/app-confirmed**; native progression **Capture-confirmed** |
-| `0x1879` | 4–7 | Matching cumulative discharged capacity, `uint32` LE | `0.1 Ah/count` | `foxess_discharged_capacity_dAh` | **Strongly inferred** |
+| `0x1879` | 4–7 | Cumulative discharged capacity, `uint32` LE | `0.1 Ah/count` | `foxess_discharged_capacity_dAh` | **Capture-confirmed** by later EP12 Plus progression |
 | `0x1875` | 6–7 | Whole equivalent-cycle value, `uint16` LE | `1 cycle/count` | Bidirectional Wh throughput divided by `2 × datalayer.battery.info.total_capacity_Wh` | Field/display and first threshold **Hardware/app-confirmed**; exact v67 calculation established by frozen source |
 
 These quantities are not interchangeable.
@@ -100,14 +100,14 @@ negative current = physical discharging
 
 This is the sign used to decide which installation counter receives an increment.
 
-It must not be confused with the live Fox current representation in frames such as `0x1873`, where v67 deliberately reverses the sign to match genuine Fox traffic:
+It must not be confused with the live current representation transmitted by frozen v67 in frames such as `0x1873`. v67 deliberately reverses the sign:
 
 ```text
-negative Fox current = charging
-positive Fox current = discharging
+negative frozen-v67 current = charging
+positive frozen-v67 current = discharging
 ```
 
-That live-current sign inversion is not applied to the cumulative installation counters.
+That inversion produced **Hardware/app-confirmed** app-facing behaviour on the tested KH9, but later genuine battery-origin Fox captures use positive charging and negative discharging—the same physical sign convention as Battery-Emulator's generic datalayer. The native/v67 discrepancy requires a separate controlled hardware review. It does not justify reversing the energy or capacity accumulators, and this documentation workstream makes no functional change.
 
 ### Energy integration
 
@@ -571,7 +571,7 @@ The fact that the field is charging-only is **Capture-confirmed**. The `0.1 Ah/c
 
 ### Discharged half
 
-The matching v67 mapping is:
+The v67 mapping is:
 
 ```text
 0x1879 bytes 4–7
@@ -580,15 +580,13 @@ The matching v67 mapping is:
     = 0.1 Ah/count
 ```
 
-However, the available genuine discharge portion transferred only approximately `23 Wh`.
+The older available genuine discharge portion transferred only approximately `23 Wh`.
 
-That was insufficient to cross the expected first `0.1 Ah` threshold.
+That was insufficient to cross the expected first `0.1 Ah` threshold, so the field remained zero and the discharged interpretation was only **Strongly inferred** at that historical stage.
 
-The native discharged field therefore remained zero.
+The later cross-model audit supplied meaningful discharged-capacity progression in the EP12 Plus capture. Independent integration of the native current supports the same `0.1 Ah/count` scale.
 
-The mirrored two-`uint32` structure, directional symmetry and v67 architecture strongly support the discharged interpretation, but a decisive genuine native discharge transition is still missing.
-
-**Evidence: Strongly inferred.**
+The same mapping is therefore now **Capture-confirmed**.
 
 ### v67 hardware proof of the charged path
 
@@ -1120,6 +1118,7 @@ The interpretation developed through a sequence of controlled observations and f
 | SOC comparison | `0x31 = 49`, `0x32 = 50`, matching unit SOC | Byte 1 identified as unit SOC rather than direction state | **Capture-confirmed** |
 | Longer continuous EP12 capture | `0x1878` 32-bit field continued toward ~240 while measured absolute transfer was ~246 Wh | Established absolute-throughput interpretation | **Capture-confirmed** |
 | `0x1879` native re-analysis | Charged half progressed `0 → 1 → 2 → 3 → 4` around ~79, ~82, ~158 and ~164 Wh in a dual-EP12 charge | Strong evidence for directional charged capacity at `0.1 Ah/count` | **Capture-confirmed** quantity; scale exceptionally strongly supported |
+| Later EP12 Plus audit | Discharged half showed meaningful progression and agreed with independent current integration | Resolved the older short-capture evidence gap for bytes 4–7 | **Capture-confirmed** discharged capacity at `0.1 Ah/count` |
 | Fallback observations | `8.90 / 9.67 = 0.920372`; `9.10 / 9.89 = 0.920121` | Total Charged identified as following a discharged-derived fallback in this region | **Hardware/app-confirmed** |
 | Model comparison | `0.942 × 0.977 = 0.920334` | Near-exact consistency with observed Fox model coefficients | **Strongly inferred** relationship, not proven formula |
 | v66 charged-only `0x1878` test | Total Charged continued following fallback | Rejected `0x1878` as independent Total Charged source | **Hardware/app-confirmed** rejection |
@@ -1205,12 +1204,6 @@ The charged-capacity source has been functionally proved, but the exact voltage/
 ### Exact physical semantics of the relevant `0x1902` / `0x1906` model coefficients
 
 Their numerical relationship to fallback behaviour is strong, but their official physical names and complete model roles remain **Unresolved**.
-
-### Native `0x1879` discharged-side transition
-
-The matching `uint32` discharged-capacity field at `0.1 Ah/count` is **Strongly inferred**.
-
-A genuine native EP12 discharge containing enough transferred capacity to cross a clear threshold would provide the missing direct proof.
 
 ### Native persistence epoch
 
