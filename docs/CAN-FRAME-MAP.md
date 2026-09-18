@@ -16,7 +16,7 @@ A frame can work correctly on real hardware even when the official Fox name or p
 When evidence conflicts, this document applies the following priority:
 
 1. Real hardware behaviour
-2. Genuine EP12 CAN captures
+2. Genuine Fox CAN captures
 3. Manager-firmware analysis
 4. The frozen v67 implementation
 5. Historical comments and older theories
@@ -46,19 +46,21 @@ The evidence labels mean:
 - v67 integer divisions truncate unless a formula explicitly includes rounding. Values described as saturated or clamped stop at the stated wire-type limit.
 - `dV`, `dA`, `dC`, `dAh`, and `pptt` in v67 source names mean `0.1 V`, `0.1 A`, `0.1 °C`, `0.1 Ah`, and percent-times-100 respectively.
 
-### Current direction
+### Current direction: native Fox versus frozen v67
 
 Battery-Emulator's generic datalayer uses:
 
 - positive current = physical charging
 - negative current = physical discharging
 
-Fox current fields in `0x1873` and `0x0C05` use the opposite sign:
+Genuine battery-origin Fox traffic uses the same physical convention in `0x1873`:
 
-- negative Fox current = charging
-- positive Fox current = discharging
+- positive = charging
+- negative = discharging
 
-v67 therefore transmits `-reported_current_dA` in those two fields, subject to readiness gating and `int16` saturation. This sign reversal is not applied blindly to status, power-limit, energy, or capacity fields.
+This is **Capture-confirmed**. Non-zero EP12 and EP12 Plus `0x0C05` unit currents use the same sign. CQ7 `0x0C05`–`0x0C08` remained zero in the audited capture, so that unit-frame result is not generalised to CQ7. Inverter-origin `0x1871` opcode `0x07` normally uses the opposite perspective during settled flow: negative while the battery charges and positive while it discharges; magnitudes need not be exact negatives.
+
+Frozen v67 nevertheless transmits `-reported_current_dA` in `0x1873` and `0x0C05`, subject to readiness gating and `int16` saturation. Its app-facing result on the tested KH9 is therefore negative while charging and positive while discharging, and that behaviour is **Hardware/app-confirmed**. The native/v67 discrepancy requires controlled hardware review; this documentation correction does not change functional code. Energy and capacity accumulation continues to use the generic datalayer direction and must not be reversed.
 
 ### v67 readiness terms used below
 
@@ -114,7 +116,7 @@ The dynamic/mixed tables below describe values after `update_values()` has popul
 | `0x1876` | Battery → inverter | 8 | Charge permission/status and cell-voltage extrema | Mixed | Capture-confirmed cell voltages; Strongly inferred permission semantic |
 | `0x1877` | Battery → inverter | 8 | Fault/status and rotating controller/unit identity | Mixed | Capture-confirmed identity structure; Provisional fault code |
 | `0x1878` | Battery → inverter | 8 | Individual-unit SOC and absolute energy throughput | Mixed | Capture-confirmed; Firmware-supported |
-| `0x1879` | Battery → inverter | 8 | Directional cumulative capacity | Dynamic | Hardware/app-confirmed charged side; Strongly inferred discharged side |
+| `0x1879` | Battery → inverter | 8 | Directional cumulative capacity | Dynamic | Hardware/app-confirmed charged side; Capture-confirmed both native fields |
 | `0x187A` | Battery → inverter | 8 | Directional cumulative energy | Dynamic | Hardware/app-confirmed |
 | `0x187B` | Battery → inverter | 8 | SOH, operating state, rated and effective capacity | Mixed | Capture-confirmed; Hardware/app-confirmed display behaviour |
 | `0x187F` | Battery → inverter | 8 | Fixed EP field; purpose unknown | Static | Capture-confirmed payload; Unresolved semantics |
@@ -122,12 +124,12 @@ The dynamic/mixed tables below describe values after `update_values()` has popul
 | `0x1900` | Battery → inverter | 8 | Capacity/energy summary and fixed model bytes | Mixed | Capture-confirmed structure; Provisional scope; Unresolved trailing field |
 | `0x1901` | Battery → inverter | 8 | Fixed model/calibration data | Static | Capture-confirmed payload; Unresolved semantics |
 | `0x1902` | Battery → inverter | 8 | Model value, discharge-power limit, resistance-like value, temperature-like value | Mixed | Capture-confirmed structure; Strongly inferred and Provisional meanings |
-| `0x1903` | Battery → inverter | 8 | Total installed nominal energy | Mixed | Capture-confirmed |
+| `0x1903` | Battery → inverter | 8 | SOC-scaled nominal energy | Mixed | Capture-confirmed across six capture sets |
 | `0x1904` | Battery → inverter | 8 | Extreme-measurement location values | Mixed | Strongly inferred structure; Unresolved ordering/packing |
-| `0x1905` | Battery → inverter | 8 | Compact battery-state/model summary | Mixed | Capture-confirmed relationships; Unresolved official semantics |
+| `0x1905` | Battery → inverter | 8 | Compact family-specific battery-state/model summary | Mixed | Strong capture associations; Unresolved official semantics |
 | `0x1906` | Battery → inverter | 8 | Per-unit model parameters | Static in v67 | Capture-confirmed values; Unresolved official semantics |
 | `0x1907` | Battery → inverter | 8 | Two high-resolution battery-state estimates | Dynamic | Capture-confirmed structure; Strongly inferred scale; Unresolved first semantic |
-| `0x1908` | Battery → inverter | 8 | Model-state code and capacity-adjusted estimate | Dynamic | Capture-confirmed structure; Provisional names; Unresolved official states |
+| `0x1908` | Battery → inverter | 8 | Expanded status/model container and second model value | Dynamic | Capture-confirmed structure; Unresolved flags/subfields and exact semantics |
 | `0x1909` | Battery → inverter | 8 | Zero-filled extended slot | Static | Capture-confirmed all-zero behaviour; Unresolved purpose |
 | `0x0C05` | Battery → inverter | 8 | Individual virtual-unit status | Dynamic | Capture-confirmed |
 | `0x0C1D`–`0x0CA9`, step `0x04` | Battery → inverter | 8 each | 144 virtual cell voltages, four per frame | Dynamic | Capture-confirmed format; Provisional generic remapping |
@@ -166,7 +168,7 @@ This is main-response batch 0.
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
 | 0–1 | `uint16` LE | `0.1 V/count` | `status.voltage_dV` | Live battery voltage | Capture-confirmed | Dynamic. |
-| 2–3 | `int16` LE | `0.1 A/count` | `-status.reported_current_dA` when the power path is active; otherwise `0`; saturated to `[-32768, 32767]` | Live battery current in Fox direction | Capture-confirmed; Hardware/app-confirmed operation | Negative = charging, positive = discharging. |
+| 2–3 | `int16` LE | `0.1 A/count` | `-status.reported_current_dA` when the power path is active; otherwise `0`; saturated to `[-32768, 32767]` | Live battery current | Native sign **Capture-confirmed**; v67/app sign **Hardware/app-confirmed** | Native Fox: positive charging, negative discharging. Frozen v67/tested app: negative charging, positive discharging. |
 | 4 | `uint8` | `1 %/count` | `reported_soc / 100`, capped at `100` | Pack/system SOC | Capture-confirmed | Integer truncation. |
 | 5 | `uint8` | — | `0x00` | Zero-filled companion byte | Capture-confirmed | Official purpose unresolved. |
 | 6–7 | `uint16` LE | `10 Wh/count` | Reconstructed nominal energy divided by 10, then capped at `65535` | Advertised nominal battery energy | Capture-confirmed; Hardware/app-confirmed display behaviour | Genuine EP12 examples include `1152` = 11.52 kWh for one unit and `2304` = 23.04 kWh for two. |
@@ -253,7 +255,7 @@ The v67 counter in bytes 4–7 is the sum of its directional energy counters. Se
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
 | 0–3 | `uint32` LE | `0.1 Ah/count` | Integrated positive Battery-Emulator current; saturated at `UINT32_MAX` | Cumulative charged capacity | Hardware/app-confirmed | Genuine charging captures showed the count progress `0 → 1 → 2 → 3 → 4`; the app test isolated the charged side. |
-| 4–7 | `uint32` LE | `0.1 Ah/count` | Integrated magnitude of negative Battery-Emulator current; saturated at `UINT32_MAX` | Matching cumulative discharged capacity | Strongly inferred | Symmetric construction and manager parsing support this, but the supplied native discharge capture did not move enough charge to force a decisive 0.1 Ah transition. |
+| 4–7 | `uint32` LE | `0.1 Ah/count` | Integrated magnitude of negative Battery-Emulator current; saturated at `UINT32_MAX` | Cumulative discharged capacity | Capture-confirmed | EP12 Plus provides meaningful native progression; current integration independently supports the scale. Older captures alone were too short to prove a transition. |
 
 v67 accumulates `dA × ms` separately by direction and completes one `0.1 Ah` count per `3,600,000 dA·ms`. Integration occurs only while the v67 power path is active. The old header label `Reserved EP field` is contradicted by stronger evidence. This frame is in main-response batch 1.
 
@@ -271,7 +273,7 @@ v67 integrates `voltage_dV × abs(current_dA) × elapsed_ms`, separates the resu
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
 | 0 | `uint8` | `1 %/count` | `soh_pptt / 100`, capped at `100` | State of health | Hardware/app-confirmed | Integer truncation. |
-| 1 | `uint8` state | — | `0x04` not ready; `0x02` charging; `0x01` discharging; `0x00` ready/idle | Operating-state code | Capture-confirmed; Hardware/app-confirmed operation | Charging/discharging requires at least 1.0 A magnitude in v67. |
+| 1 | `uint8` state | — | `0x04` not ready; `0x02` charging; `0x01` discharging; `0x00` ready/idle | Operating-state code | Native map Capture-confirmed; v67 operation Hardware/app-confirmed | Native Fox uses `0x01` charging, `0x02` discharging, `0x00` idle/no active direction, and `0x04` startup/not ready. `0x00` does not necessarily mean exactly zero current. Frozen v67 swaps the charging/discharging codes and applies a 1.0 A activity threshold. |
 | 2–3 | Two bytes | — | `00 00` | Zero/reserved in observed traffic | Capture-confirmed zero | Official purpose unresolved. |
 | 4–5 | `uint16` LE | `0.1 Ah/count` | Rated energy converted to capacity using v67's estimated nominal voltage; capped at `65535` | Rated/design capacity | Capture-confirmed field/scale; Firmware-supported | Native one-unit examples use `300` = 30.0 Ah; multi-unit system totals scale upward. |
 | 6–7 | `uint16` LE | `0.1 Ah/count` | Reported effective energy converted in the same way; capped at `65535` | Full/effective capacity | Capture-confirmed field/scale; Hardware/app-confirmed display behaviour | Native values vary with reported usable capacity/SOH. |
@@ -350,14 +352,14 @@ This frame is in main-response batch 3.
 
 This frame is in main-response batch 3.
 
-#### `0x1903` — total installed nominal energy
+#### `0x1903` — SOC-scaled nominal energy
 
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
 | 0–5 | Six bytes | — | All zero | Zero-filled portion | Capture-confirmed zero | Official purpose unresolved. |
-| 6–7 | `uint16` LE | `200 Wh/count` | `nominal_energy_Wh / 200`, capped at `65535` | Total installed nominal energy | Capture-confirmed | Integer truncation. Native one-unit and two-unit values are `57` and `115`, consistent with 11.52 kWh and 23.04 kWh. |
+| 6–7 | `uint16` LE | Native: `0.1 kWh/count` | Frozen v67: `nominal_energy_Wh / 200`, capped at `65535` | Native SOC-scaled nominal energy | Capture-confirmed | Native relationship: `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)`. It matched 14,296/14,296 comparable responses across old single/dual EP12, EP12 Plus, and CQ7 captures. |
 
-This frame is in main-response batch 3.
+The former native interpretation as fixed nominal energy at `200 Wh/count` is disproved. The old captures held SOC at 50%, so `floor(E × 50 / 1000) = floor(E / 20)`, making raw values `57` and `115` appear compatible with the old interpretation. Varying SOC resolved the ambiguity. Frozen v67 retains the earlier `/200` approximation and remains hardware-proven on the tested KH9; this frame is in v67 main-response batch 3.
 
 #### `0x1904` — extreme-measurement locations
 
@@ -375,12 +377,12 @@ The v67 max/min assignment in bytes 0–3 is an implementation choice based on i
 
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
-| 0–1 | `uint16` LE | Best-supported `10 mV/count` | Fixed `320` | Nominal cell/model voltage reference, consistent with 3.20 V | Strongly inferred | Raw value is capture-confirmed; exact official name is not. |
+| 0–1 | `uint16` LE | Model/family-specific | Fixed `320` | Model/family reference | Capture-confirmed raw values; semantic Unresolved | EP12 uses `320`, while CQ7 uses `1240`; the old universal 3.20 V nominal-cell interpretation is disproved. |
 | 2 | `uint8` | `1 %/count` | Whole reported SOC, capped at `100`; forced to `0` until capacity model ready | Primary whole-percent battery-state value | Capture-confirmed relationship | SOC is the best-supported interpretation, but this is not an official field name. |
 | 3 | `uint8` state | — | `0x04` before capacity model ready; `0x08` when ready | Compact model-state code | Capture-confirmed wire states | v67's “initialising/ready” wording is descriptive, not an official Fox enumeration. |
 | 4 | `uint8` | Unknown | `floor(970 / 10) = 97`, derived from `0x1906` bytes 4–5 | Coarse copy of model parameter B | Capture-confirmed relationship | Do not call it an efficiency value without stronger evidence. |
-| 5 | `uint8` | Best-supported `1 %/count` | `floor(0x1907 bytes 4–7 / 10)` | Coarse copy of the second high-resolution state estimate | Capture-confirmed relationship | v67 mirrors generic SOC into the source estimate. |
-| 6 | `uint8` | Best-supported `1 %/count` | `floor(0x1908 bytes 4–7 / 10)` | Coarse capacity-adjusted state estimate | Capture-confirmed relationship | v67 derives the source value from full/rated capacity. |
+| 5 | `uint8` | Best-supported `1 %/count` | `floor(0x1907 bytes 4–7 / 10)` | Coarse value strongly associated with the second `0x1907` value | Strong association, not universal identity | EP12 Plus has one matched-response exception; CQ7 matches strongly. Frozen v67 enforces exact truncation. |
+| 6 | `uint8` | Best-supported `1 %/count` | `floor(0x1908 bytes 4–7 / 10)` | Coarse value strongly associated with the second `0x1908` value | Strong association, not universal identity | EP12 Plus has 42 matched-response exceptions and older startup evidence has an exception; CQ7 matches strongly. Frozen v67 enforces exact truncation. |
 | 7 | `uint8` | — | `0x00` | Zero-filled | Capture-confirmed zero | Official purpose unresolved. |
 
 A representative genuine operational payload is `40 01 32 08 61 32 2F 00`; an observed startup form is `40 01 00 04 61 00 00 00`. These examples demonstrate relationships, not official names. This frame is in main-response batch 4.
@@ -405,14 +407,14 @@ v67 intentionally sends a stable captured value rather than reproducing the nati
 
 Observed native values occupy the low part of each 32-bit slot; the manager-derived field boundaries are 32-bit. This frame is in main-response batch 4.
 
-#### `0x1908` — model state and capacity-adjusted estimate
+#### `0x1908` — expanded status/model container
 
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
-| 0–3 | `uint32` LE | State code | `14` until capacity model ready; `16` when ready | Battery-state/model phase code | Capture-confirmed field boundary; Provisional names | Native captures also contain state `0` in some loaded-idle operation; v67 does not reproduce that state. Official state names are unresolved. |
-| 4–7 | `uint32` LE | Best-supported `0.1 %/count` | `fine_state × full_capacity_dAh / rated_capacity_dAh`, capped at `1000`; otherwise the fine value | Capacity-adjusted high-resolution state estimate | Capture-confirmed relationship; Strongly inferred meaning | `0x1905` byte 6 is its whole-percent coarse copy. |
+| 0–3 | Four-byte container | Unresolved | Frozen v67 sends simple LE32 values `14` before capacity-model readiness and `16` when ready | Expanded status/model container with likely flags/subfields | Capture-confirmed forms; exact definitions Unresolved | Native forms include `10 04 80 00`, `10 08 00 00`, `10 0A 40 00`, and `10 0C 80 00`; it must not be documented as a universal simple enum. |
+| 4–7 | `uint32` LE | Best-supported `0.1 %/count` | Frozen v67 sends `fine_state × full_capacity_dAh / rated_capacity_dAh`, capped at `1000`; otherwise the fine value | Second model/state quantity | Capture-confirmed field boundary; exact semantic Unresolved | New genuine captures contradict the v67 capacity-adjusted formula as a universal native relationship. Its coarse association with `0x1905` byte 6 has exceptions. |
 
-This frame is in main-response batch 4.
+Frozen v67 may retain its capacity-adjusted approximation as an implementation choice. It is not a universal native Fox formula. This frame is in v67 main-response batch 4.
 
 #### `0x1909` — all-zero extended slot
 
@@ -422,13 +424,38 @@ This frame is in main-response batch 4.
 
 This is the final frame in main-response batch 4.
 
+### Native newer-family extension: `0x1910`–`0x1919`
+
+These identifiers were absent from the audited old EP12 captures and present after `0x1909` in every observed complete normal main response from EP12 Plus and CQ7. No new request selector was observed. Passive ordering does not prove an internal scheduler design, and these frames are not claimed to be required by every inverter.
+
+Frozen v67 does **not** transmit `0x1910`–`0x1919`; they are not part of its 63-frame transmit inventory. v67 already demonstrated compatibility on the tested KH9 without them. Whether newer inverter or manager firmware requires the extension is **Unresolved**, so documentation evidence alone is insufficient reason to implement it.
+
+| Frames | EP12 Plus | CQ7 | Evidence / limits |
+|---|---|---|---|
+| `0x1910` | ASCII `EP12` plus zero padding | Eight spaces | Capture-confirmed bytes |
+| `0x1911` | No separate meaning assigned by this audit | One space then zero padding | CQ7 bytes Capture-confirmed; do not infer text semantics from padding |
+| `0x1912`–`0x1914` | `0x1912 + 0x1913` concatenate to `EP12 Plus (w)`; `(w)` meaning Unresolved | Zero | Capture-confirmed bytes; no CQ7 text meaning assigned |
+| `0x1915` | First LE32 fixed at `4`; second LE32 monotonic/seconds-like | Exact cross-frame structure described below | Family/revision dependent |
+| `0x1916` | First LE32 monotonic/seconds-like; second LE32 zero | All zero | EP12 Plus uptime/runtime/seconds-like interpretation Strongly inferred, not official semantics |
+| `0x1917`–`0x1919` | All zero | All zero | Capture-confirmed values; purpose Unresolved |
+
+For CQ7, `0x1915` matched the following structure in 3,157/3,157 normal main responses:
+
+- bytes 0–1 = `0x1905` bytes 0–1;
+- bytes 2–3 = `0x1908` bytes 0–1;
+- byte 4 = `floor(0x1907` second LE32 `/ 10)`;
+- byte 5 = `floor(0x1907` first LE32 `/ 10)`; and
+- bytes 6–7 = `0`.
+
+This CQ7 layout does not apply to EP12 Plus. Frames `0x190A`–`0x190F` were not observed in the audited captures; no payload, meaning, or scheduler position is assigned to them.
+
 ### Individual virtual-unit status
 
 #### `0x0C05` — individual unit data
 
 | Bytes | Type / endian | Scale | v67 source/value | Best-supported meaning | Evidence | Notes |
 |---|---|---|---|---|---|---|
-| 0–1 | `int16` LE | `0.1 A/count` | Negative of generic current while power path active; otherwise zero; saturated to `int16` | Individual-unit current in Fox direction | Capture-confirmed | Negative = charging, positive = discharging. |
+| 0–1 | `int16` LE | `0.1 A/count` | Negative of generic current while power path active; otherwise zero; saturated to `int16` | Individual-unit current | Native EP12/EP12 Plus sign Capture-confirmed; v67 sign implementation-confirmed | Native non-zero values: positive charging, negative discharging. Frozen v67 sends the opposite sign. CQ7 unit currents remained zero in the audited capture. |
 | 2 | `uint8` offset | `1 °C/count`, offset `+50` | `temperature_max_dC / 10 + 50`, clamped to `[0, 255]` | Maximum unit temperature | Capture-confirmed | Whole-degree conversion truncates toward zero. |
 | 3 | `uint8` offset | `1 °C/count`, offset `+50` | `temperature_min_dC / 10 + 50`, clamped to `[0, 255]` | Minimum unit temperature | Capture-confirmed | — |
 | 4 | `uint8` | `1 %/count` | Same capped unit SOC used by `0x1878` byte 1 | Individual-unit SOC | Capture-confirmed | — |
@@ -694,17 +721,18 @@ The two temperature frames are transmitted together in response to `0x1871` byte
 
 ## Cross-frame relationships
 
-| Relationship | v67 implementation | Evidence status |
+| Relationship | Mapping / implementation | Evidence status |
 |---|---|---|
 | `0x1873` bytes 6–7 and `0x1900` bytes 2–3 | Same nominal-energy value at `10 Wh/count` | Capture-confirmed |
-| `0x1903` bytes 6–7 | Same nominal energy expressed at `200 Wh/count` | Capture-confirmed |
+| Native `0x1903` bytes 6–7 | `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)`, at `0.1 kWh/count` | Capture-confirmed, 14,296/14,296 comparable responses |
+| Frozen v67 `0x1903` bytes 6–7 | Nominal energy divided by 200 | Frozen implementation; disproved as a universal native interpretation |
 | `0x187B` bytes 4–5 and `0x1900` bytes 0–1 | v67 sends the same rated-capacity value | v67 implementation; native `0x1900` appears per-unit while `0x187B` can be system-total |
 | `0x1878` bytes 4–7 | Charged Wh plus discharged Wh | Capture-confirmed; Firmware-supported |
-| `0x1879` and `0x187A` | Directional capacity and directional energy respectively | Charged sides hardware/app-confirmed; `0x1879` discharged side strongly inferred |
+| `0x1879` and `0x187A` | Directional capacity and directional energy respectively | `0x1879` both halves Capture-confirmed; charged path and both `0x187A` halves Hardware/app-confirmed where stated above |
 | `0x1875` bytes 6–7 | Floors total bidirectional energy throughput divided by `2 × datalayer.battery.info.total_capacity_Wh` | v67 source-confirmed calculation; Hardware/app-confirmed field/display and first 0 → 1 transition; native Fox calculation formula not independently proven |
 | `0x1905` byte 4 | Coarse copy of `0x1906` bytes 4–5 divided by 10 | Capture-confirmed relationship |
-| `0x1905` byte 5 | Coarse copy of `0x1907` bytes 4–7 divided by 10 | Capture-confirmed relationship |
-| `0x1905` byte 6 | Coarse copy of `0x1908` bytes 4–7 divided by 10 | Capture-confirmed relationship |
+| `0x1905` byte 5 | Strongly associated with `floor(0x1907` second LE32 `/ 10)` | Not universal: one EP12 Plus matched-response exception; CQ7 matches strongly; exact in v67 by implementation |
+| `0x1905` byte 6 | Strongly associated with `floor(0x1908` second LE32 `/ 10)` | Not universal: 42 EP12 Plus matched-response exceptions and an older startup exception; CQ7 matches strongly; exact in v67 by implementation |
 
 ## Rejected / disproved interpretations
 
@@ -714,5 +742,8 @@ The two temperature frames are transmitted together in response to `0x1871` byte
 - The v66 charged-only `0x1878` experiment did **not** fix Total Charged and is not the v67 mapping.
 - Fox reverting to its approximately 92% fallback does **not** prove that `0x1879` failed. The fallback path and the successful decoding of the direct counter are separate questions.
 - `0x1906` bytes 4–5 values such as `970` and `977` are **not** a simple charge/discharge state flag. Captures show slow model-like variation rather than direction switching.
+- Native `0x1903` bytes 6–7 are **not** a universal fixed nominal-energy field at `200 Wh/count`; fixed 50% SOC in the old captures created that ambiguity.
+- `0x1905` raw `320` is **not** universally a 3.20 V nominal-cell value; CQ7 uses `1240`.
+- Native `0x1908` bytes 0–3 are **not** universally a simple `0`/`14`/`16` enum, and its second LE32 does **not** universally follow v67's capacity-adjusted formula.
 
 This document deliberately does not reproduce the full Fox energy-counter fallback analysis, persistence discussion, commissioning sequence, or test chronology. Those subjects belong in [`ENERGY-COUNTERS.md`](ENERGY-COUNTERS.md) and other dedicated project documents.
