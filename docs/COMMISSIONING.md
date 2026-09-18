@@ -123,16 +123,18 @@ Confirm, where available:
 - battery temperature; and
 - SOH.
 
-For Fox-facing current values, the convention used by the tested EP protocol is:
+For Fox-facing current values, frozen v67 produced the following **Hardware/app-confirmed** behaviour on the tested KH9 installation:
 
 ```text
 charging    = negative current
 discharging = positive current
 ```
 
-This is the Fox-facing representation.
+This is the frozen-v67/tested-app representation used by the practical commissioning checks in this guide.
 
 It must not be confused with Battery-Emulator's internal generic datalayer convention, where positive current represents physical charging and negative current represents physical discharging.
+
+Later genuine Fox battery captures show the native battery-origin convention is also positive charging and negative discharging—the opposite of frozen v67's transmitted/app-facing sign. This discrepancy requires controlled hardware review before any functional code change. It does not alter the tested v67 commissioning procedure below.
 
 ### 4. Charge first
 
@@ -214,10 +216,10 @@ Normal operation can then begin within the limits and safety rules of the suppor
 | Observation | Expected interpretation |
 | --- | --- |
 | Status shows Charging | Battery is physically charging |
-| Fox-facing current is negative | Expected charging-current convention |
+| Frozen-v67/app-facing current is negative | Expected tested-v67 charging-current convention |
 | Charged counters progress | Expected during sufficient physical charging |
 | Status shows Discharging | Battery is physically discharging |
-| Fox-facing current is positive | Expected discharging-current convention |
+| Frozen-v67/app-facing current is positive | Expected tested-v67 discharging-current convention |
 | Discharged counters progress | Expected during sufficient physical discharge |
 | Energy value does not move after a very small transfer | Can be normal because `0x187A` updates in `0.1 kWh` steps |
 | Total Charged remains fixed during pure discharge | Expected when Fox is continuing to use the accepted direct charged path |
