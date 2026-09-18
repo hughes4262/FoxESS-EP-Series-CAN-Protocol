@@ -79,23 +79,16 @@ It does **not** preserve cumulative history across reboot or reflash.
 
 See [`COMMISSIONING.md`](COMMISSIONING.md) for the commissioning procedure and its limitations.
 
-## `0x1879` discharged-capacity evidence boundary
+## Native-versus-v67 fidelity differences
 
-The two halves of `0x1879` do not currently have equal native evidence.
+Both `0x1879` halves are now **Capture-confirmed** at `0.1 Ah/count`; EP12 Plus supplied the discharged-side progression missing from the older short capture. The remaining limitations concern fidelity and hardware-review scope rather than that mapping:
 
-For bytes 0–3, the charged-capacity path has:
+- genuine battery-origin `0x1873` current is positive while charging and negative while discharging, but frozen v67 negates generic current and produced the opposite **Hardware/app-confirmed** app-facing sign on the tested KH9;
+- native `0x187B` byte 1 uses `0x01` charging and `0x02` discharging, while frozen v67 uses those two codes in the opposite direction;
+- native `0x1903` is SOC-scaled nominal energy at `0.1 kWh/count`, while frozen v67 retains the earlier `nominal_energy_Wh / 200` approximation; and
+- frozen v67's simple `0x1908` states and capacity-adjusted second value do not reproduce all later native forms.
 
-- genuine native progression during charging;
-- transition spacing strongly supporting `0.1 Ah/count`; and
-- hardware/app proof that Fox can accept the resulting direct charged path.
-
-For bytes 4–7, the matching discharged-capacity interpretation remains **Strongly inferred**.
-
-The available genuine native discharge span transferred too little charge to cross the expected first `0.1 Ah` threshold, so no decisive native discharged-side increment was observed.
-
-This is an evidence limitation. It is not evidence that v67's discharged half is wrong, and it is not a blocker for the charge/discharge interoperability already demonstrated on the validated installation.
-
-A sufficiently long genuine native EP12 discharge capture could provide decisive confirmation in the future.
+These discrepancies do not invalidate the tested v67 interoperability result. They require separate controlled hardware review before any functional code change.
 
 ## Total Charged internal algorithm remains unresolved
 
@@ -155,9 +148,16 @@ Important unresolved or provisional areas include:
 - `0x1902` word 0 exact physical meaning;
 - the exact source, filtering or interpretation of the temperature-like field in `0x1902`;
 - `0x1904` exact max/min location order and temperature/location packing;
+- `0x1905` bytes 0–1, which are model/family-specific (`320` on old EP12 and `1240` on CQ7) rather than a universal 3.20 V nominal-cell field;
 - `0x1906` parameters A and B exact physical meanings;
-- the exact distinction among the `0x1905`, `0x1907` and `0x1908` SOC/SOE/model-state quantities; and
+- the exact distinction among the `0x1905`, `0x1907` and `0x1908` SOC/SOE/model-state quantities;
+- the internal flags/subfields in the expanded `0x1908` bytes 0–3 container;
+- family/revision-dependent `0x1915`/`0x1916` semantics; and
 - the purpose of `0x1909`.
+
+The older exact `0x1905` byte-5/byte-6 truncation identities are also not universal native packet identities: the cross-model audit found small EP12 Plus and older-startup exceptions. Frozen v67 may enforce them as implementation choices.
+
+The newer-family `0x1910`–`0x1919` extension is absent from old EP12 and present in the audited EP12 Plus and CQ7 traffic. Frozen v67 does not transmit it and already works on the tested KH9 without it. Whether newer inverter or manager firmware requires the extension remains **Unresolved**; `0x190A`–`0x190F` were not observed and no payloads are inferred.
 
 v67 uses conservative, internally consistent generic mappings or stable capture-backed values where Battery-Emulator has no equivalent generic source.
 
@@ -231,13 +231,12 @@ This project does not claim that FoxESS cloud algorithms have been fully reverse
 
 ## Raw capture coverage
 
-The genuine EP12 capture set is strong but finite.
+The genuine Fox capture set is strong but finite and now includes old single/dual EP12, EP12 Plus and CQ7 evidence.
 
 Known capture coverage includes startup, charging, discharge and dual-unit behaviour.
 
 Some fields remain unresolved because the available native captures did not include:
 
-- sufficient discharge to cross every useful cumulative threshold;
 - every possible SOC, temperature or power region;
 - fault conditions;
 - service or replacement states;
@@ -257,6 +256,7 @@ These gaps are evidence boundaries. They do not justify manufacturing unobserved
 | App values lag physical CAN activity | Cloud/app update timing can delay presentation |
 | Negative daily values appear after reboot/reflash | Volatile local cumulative history versus retained Fox context, not a newly broken frame map |
 | Native `0x190x` values differ slightly from v67 stable generic values | Expected generic emulation where no equivalent Battery-Emulator generic source exists |
+| Native current sign or `0x187B` direction codes differ from frozen v67 | Documented fidelity discrepancy requiring controlled hardware review, not a reason to rewrite the successful KH9 history |
 
 ## Deferred upstream integration items
 
@@ -265,7 +265,8 @@ These gaps are evidence boundaries. They do not justify manufacturing unobserved
 | Persistent cumulative history | Requires integration with wider Battery-Emulator persistence architecture rather than an isolated documentation-phase design | **Release blocker** for a polished upstream release |
 | Migration and continuity across firmware updates | Fox-facing cumulative history must remain coherent across upgrades, but the mechanism belongs to later integration design | Part of resolving the persistence release blocker |
 | Broader hardware validation | Current hardware evidence is strong but finite | Desirable before claiming wide compatibility |
-| Additional native discharge evidence for `0x1879` | Would provide direct native proof for the matching discharged-capacity field | Evidence improvement; not a current operational blocker |
+| Controlled review of native-v67 current and `0x187B` direction differences | Functional changes could affect the tested KH9 behaviour and must not be inferred from captures alone | Hardware-review requirement |
+| Newer-family extension compatibility | It is unresolved whether newer inverter/manager firmware requires `0x1910`–`0x1919` | Compatibility evidence gap; not required on the tested KH9 |
 | Firmware-version provenance for recorded tests | Some checkpoint-to-firmware associations were not recorded contemporaneously | Documentation-quality improvement |
 | Remaining model-field semantics | Several `0x190x` fields remain Provisional or Unresolved | Reverse-engineering improvement; not necessarily an interoperability blocker |
 
@@ -296,13 +297,15 @@ These statements describe the validated installation only and should not be expa
 | Directional energy | **Hardware/app-confirmed** |
 | Absolute throughput | **Capture-confirmed and implemented** |
 | Independent charged-capacity path | **Hardware/app-confirmed** |
-| Discharged-capacity native proof | **Strongly inferred** |
+| Discharged-capacity native proof | **Capture-confirmed** |
 | Equivalent-cycle field/display | **Hardware/app-confirmed** |
 | Native Fox cycle formula | **Unresolved** |
 | Total Charged fallback behaviour | **Hardware/app-confirmed** |
 | Exact fallback/direct selection algorithm | **Unresolved** |
 | Counter persistence | **Not implemented / release blocker** |
 | Broad inverter/firmware coverage | **Additional validation desirable** |
+| Native-v67 current/`0x187B` fidelity | **Controlled hardware review required** |
+| Newer-family `0x1910`–`0x1919` requirement | **Unresolved** |
 | Battery-agnostic design | **Preserved** |
 
 v67 is a strong hardware-proven reverse-engineering checkpoint.
