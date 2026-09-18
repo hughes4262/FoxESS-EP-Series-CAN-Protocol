@@ -117,9 +117,9 @@ The stronger evidence was then supplied by genuine traffic and hardware:
 | Bytes 0–3 progress only during charging in the genuine dual-EP12 capture | **Capture-confirmed** |
 | Bytes 0–3 represent cumulative charged capacity at 0.1 Ah/count | **Capture-confirmed**; the threshold pattern supports the scale exceptionally strongly |
 | Fox accepted the v67 charged-capacity path as an independent charged source | **Hardware/app-confirmed** |
-| Bytes 4–7 are the matching cumulative discharged-capacity field at 0.1 Ah/count | **Strongly inferred** pending a native discharge transition |
+| Bytes 4–7 are cumulative discharged capacity at 0.1 Ah/count | **Capture-confirmed** by later EP12 Plus progression |
 
-In the genuine dual-unit charge, bytes 0–3 progressed `0 → 1 → 2 → 3 → 4`. Paired transitions occurred near the energy required for two parallel EP12 units to cross successive 0.1 Ah boundaries. The available native discharge span was only about 23 Wh, so it did not cross the expected first discharged-capacity threshold.
+In the genuine dual-unit charge, bytes 0–3 progressed `0 → 1 → 2 → 3 → 4`. Paired transitions occurred near the energy required for two parallel EP12 units to cross successive 0.1 Ah boundaries. That older discharge span was only about 23 Wh, so at the time it could not prove the discharged half. The completed cross-model audit later supplied meaningful EP12 Plus discharged-capacity progression and independently supported the `0.1 Ah/count` scale by current integration.
 
 The manager structure supports the directional pair, but it does not by itself establish Fox's exact Ah-to-kWh conversion. Hardware proved that the charged path is accepted: once sufficient v67 charged history existed, Total Charged remained at 19.40 kWh while Total Discharged increased from 11.20 to 11.50 kWh. The manager's exact voltage, calibration and model calculation remains **Unresolved**.
 
@@ -131,7 +131,7 @@ Only relationships that materially support the approved frame map are summarised
 | --- | --- | --- |
 | `0x187B` contains separate rated/design and full/effective capacity fields | Supports capacity-oriented field grouping and manager use | Single/dual EP12 captures and app behaviour establish the practical capacity roles |
 | `0x1873` bytes 6–7 and `0x1900` bytes 2–3 carry the same fine nominal-energy representation | Parser boundaries are consistent with separate 16-bit quantities | The matching native values and single/dual scaling are **Capture-confirmed** |
-| `0x1903` bytes 6–7 carry a coarser form of the same installed nominal energy | Manager-side structure supports a separate coarse model input | Raw 57/115 single/dual behaviour is **Capture-confirmed** |
+| `0x1903` bytes 6–7 carry SOC-scaled nominal energy | Manager-side structure supports a separate model input | `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)` matched 14,296/14,296 comparable responses and is **Capture-confirmed** |
 
 The complete main-frame byte map remains in [CAN-FRAME-MAP.md](CAN-FRAME-MAP.md). This document records only the firmware-derived contribution to those conclusions.
 
@@ -144,12 +144,12 @@ The extended group mixes installed-capacity descriptions, static model data, liv
 | `0x1900` | Capacity/energy summary | Capacity-related value, fine installed nominal energy and fixed trailing model bytes | Structure and scaling **Capture-confirmed**; parser use **Firmware-supported**; trailing meaning **Unresolved** |
 | `0x1901` | Static model/calibration payload | Fixed model-specific data | Payload **Capture-confirmed**; candidate types **Provisional**; semantics **Unresolved** |
 | `0x1902` | Four-word capability/model frame | Model coefficient-like value, maximum discharge power, resistance-like value and temperature-like value | Word structure **Firmware-supported**; meanings range from confirmed to provisional |
-| `0x1903` | Coarse installed-energy input | Installed nominal energy at 200 Wh/count in bytes 6–7 | **Capture-confirmed**; parser relationship **Firmware-supported** |
+| `0x1903` | SOC-scaled nominal-energy input | `0.1 kWh/count` in bytes 6–7 | Native relationship **Capture-confirmed**; frozen v67 retains the disproved earlier `/200` approximation |
 | `0x1904` | Extreme-measurement locations | Two cell-extreme positions and two temperature/location-style codes | Structure **Strongly inferred**; raw behaviour **Capture-confirmed**; order/packing **Unresolved** |
-| `0x1905` | Compact model/state summary | Model reference, several coarse SOC/SOE-like values and a model-state byte | Cross-frame relationships **Capture-confirmed**; official names **Unresolved** |
+| `0x1905` | Compact family/model-state summary | Family-specific reference, several coarse state values and a model-state byte | Strong associations with documented exceptions; official names **Unresolved** |
 | `0x1906` | Model parameters A and B | Two slowly changing per-unit/model quantities separated by zero words | Structure and values **Capture-confirmed** and **Firmware-supported**; physical meanings **Unresolved** |
 | `0x1907` | High-resolution model state | Two 32-bit battery-state slots, with the second feeding `0x1905` byte 5 | Structure **Firmware-supported**; relationship **Capture-confirmed**; first meaning **Unresolved** |
-| `0x1908` | Model phase and adjusted state | Model/status state plus fine capacity-adjusted SOC/SOE-like quantity | Structure/relationship **Capture-confirmed** and **Firmware-supported**; official names **Unresolved** |
+| `0x1908` | Expanded status/model container | Likely flags/subfields in bytes 0–3 plus a second model quantity | Native forms **Capture-confirmed**; internal flags and second-field semantic **Unresolved** |
 | `0x1909` | Present all-zero slot | Zero-filled final frame in the extended group | Wire behaviour **Capture-confirmed**; purpose **Unresolved** |
 
 ## `0x1900` — capacity / nominal-energy summary
@@ -207,24 +207,22 @@ For word 2, the single/dual behaviour and equivalent-circuit relationships suppo
 
 Frozen v67 sends the discharge-power word from the generic Battery-Emulator maximum-discharge-power value only when the battery is ready and maximum discharge current is non-zero; otherwise it sends zero. It also clamps the transmitted value to the 16-bit field. This readiness/limit gating is a v67 source fact layered on top of the reverse-engineered field mapping.
 
-## `0x1903` — coarse installed nominal energy
+## `0x1903` — SOC-scaled nominal energy
 
-Available native traffic and frozen v67 use:
+Available native traffic uses:
 
 - bytes 0–5: zero;
-- bytes 6–7: installed nominal energy at 200 Wh/count.
+- bytes 6–7: `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)` at `0.1 kWh/count`.
 
-Native examples are raw 57 for one EP12 and raw 115 for two:
+This relationship matched 14,296/14,296 comparable responses across the old single EP12 startup, charging-labelled and discharging-labelled captures, the old dual EP12 capture, EP12 Plus, and CQ7.
 
-- 57 × 200 Wh = approximately 11.4 kWh;
-- 115 × 200 Wh = approximately 23.0 kWh.
+The previous fixed nominal-energy interpretation at `200 Wh/count` is disproved. It arose because the old captures held SOC at 50%:
 
-The fine nominal-energy representation is 11.52 kWh for one unit and 23.04 kWh for two. Integer quantisation therefore explains the apparent 57-to-115 change:
+`floor(E × 50 / 1000) = floor(E / 20)`
 
-- 1152 fine counts ÷ 20 = 57 remainder 12;
-- 2304 fine counts ÷ 20 = 115 remainder 4.
+For fine energy counts `1152` and `2304`, that produces `57` and `115`, which had looked like 200 Wh coarse quantisation. Varying SOC in the later captures breaks the ambiguity.
 
-This is consistent with calculating the coarse value after system aggregation. It does not require the dual raw value to be exactly `57 × 2 = 114`. The relationship is **Capture-confirmed**, with the manager-side parsing relationship **Firmware-supported**.
+Frozen v67 still transmits `nominal_energy_Wh / 200`. That is an earlier implementation approximation, not the universal native interpretation. v67 remains the hardware-proven tested-KH9 baseline and functional code is not changed by this documentation correction.
 
 Bytes 0–5 were zero in the available evidence. They should not be described as universally unused by every Fox battery or firmware build.
 
@@ -256,17 +254,17 @@ The best-supported relationships are:
 
 | Bytes | Relationship | Evidence boundary |
 | --- | --- | --- |
-| 0–1 | Static/model reference raw 320 | Raw value **Capture-confirmed**; a 3.20 V-like interpretation is **Strongly inferred**, not official naming |
+| 0–1 | Model/family-specific reference: old EP12 raw 320, CQ7 raw 1240 | Raw values **Capture-confirmed**; exact semantic **Unresolved** |
 | 2 | Primary internal SOC-like whole-percent value | **Capture-confirmed** relationship; exact source distinction **Unresolved** |
 | 3 | Operating/model-state byte, including startup and valid-state changes such as `0x04` and `0x08` | Wire states **Capture-confirmed**; official state names **Unresolved** |
 | 4 | Coarse form of `0x1906` parameter B divided by 10 | **Capture-confirmed** cross-frame relationship |
-| 5 | Coarse form related to the second `0x1907` high-resolution state divided by 10 | **Capture-confirmed** |
-| 6 | Coarse form related to the `0x1908` fine capacity-adjusted state divided by 10 | **Capture-confirmed** |
+| 5 | Strongly associated with the second `0x1907` high-resolution state divided by 10 | Not universal: one EP12 Plus matched-response exception; CQ7 matches strongly |
+| 6 | Strongly associated with the second `0x1908` value divided by 10 | Not universal: 42 EP12 Plus matched-response exceptions and an older startup exception; CQ7 matches strongly |
 | 7 | Zero | **Capture-confirmed** |
 
 The exact semantic difference between byte 2 and byte 5 is not fully resolved. Both are battery charge/energy-state-like values, but they can update differently. This document therefore avoids declaring one to be an official “SOC” and the other an official “SOE”.
 
-Likewise, interpreting raw 320 as a 3.20 V model reference is plausible and strongly supported by the scale, but “nominal cell voltage” remains a project interpretation rather than a Fox-published field name.
+CQ7 raw `1240` disproves the earlier universal interpretation of raw `320` as a 3.20 V nominal-cell field. Frozen v67 still sends `320` as its EP-derived implementation choice.
 
 ## `0x1906` — model parameters A and B
 
@@ -303,30 +301,32 @@ The manager-supported layout is two 32-bit slots:
 | 0–3 | First high-resolution voltage/model-sensitive battery-state quantity | Structure **Firmware-supported**; scale **Strongly inferred**; exact semantic **Unresolved** |
 | 4–7 | Second high-resolution SOC/SOE-style battery-state quantity | Structure **Firmware-supported**; 0.1%-style scale and coarse relationship **Capture-confirmed** |
 
-The observed native values occupy the lower active portions of each slot, but the parser boundaries support complete 32-bit fields. The second value has a particularly strong relationship to `0x1905` byte 5:
+The observed native values occupy the lower active portions of each slot, but the parser boundaries support complete 32-bit fields. The second value has a particularly strong, but not universal, relationship to `0x1905` byte 5:
 
-`0x1905 byte 5 = floor(0x1907 second state / 10)`
+`0x1905 byte 5 ≈ floor(0x1907 second state / 10)`
+
+EP12 Plus contains one matched-response exception; CQ7 matches strongly. Frozen v67 enforces the exact truncation relationship as an implementation choice.
 
 The first value is more sensitive to voltage/model changes and can differ from the second. Candidate descriptions include voltage-derived SOC, OCV-related state or SOE, but the exact Fox semantic remains **Unresolved**.
 
 Frozen v67 mirrors generic reported SOC into both model-state fields because Battery-Emulator does not expose separate generic equivalents for every native Fox internal state variable. That interoperability choice does not make the two native values semantically identical to SOC.
 
-## `0x1908` — model state / fine capacity-adjusted quantity
+## `0x1908` — expanded status/model container
 
 The best-supported layout is:
 
 | Bytes | Best-supported role | Status |
 | --- | --- | --- |
-| 0–3 | Model/status state | Field relationship **Firmware-supported** and **Capture-confirmed**; official states **Unresolved** |
-| 4–7 | Fine capacity-adjusted SOC/SOE-like quantity | 0.1%-style relationship **Capture-confirmed**; physical name **Strongly inferred** |
+| 0–3 | Expanded status/model container with likely flags/subfields | Native forms **Capture-confirmed**; definitions **Unresolved** |
+| 4–7 | Second model/state quantity | Field boundary **Capture-confirmed**; physical meaning **Unresolved** |
 
-Native/current evidence includes model-state values 0, 14 and 16 under different startup and operating conditions. Descriptions such as “initialising” and “operational” are useful project labels, not official Fox enumerations.
+Native forms include `10 04 80 00`, `10 08 00 00`, `10 0A 40 00`, and `10 0C 80 00`. Bytes 0–3 must therefore not be reduced to a universal simple enum containing only values such as 0, 14 and 16.
 
-The exact cross-frame relationship is:
+The useful coarse association is:
 
-`0x1905 byte 6 = floor(0x1908 fine state / 10)`
+`0x1905 byte 6 ≈ floor(0x1908 second LE32 / 10)`
 
-That relationship is much stronger than the precise physical name of the fine quantity. Frozen v67 derives a capacity-adjusted state from its generic fine SOC and full/rated-capacity relationship, then uses model states 14 and 16 according to its own readiness model. It does not reproduce the observed native state 0 in every circumstance.
+The audit found 42 EP12 Plus matched-response exceptions and an older startup exception; CQ7 matches strongly. Frozen v67 enforces exact truncation, derives the second value from generic fine SOC and full/rated capacity, and sends simple values 14/16 in bytes 0–3. New genuine captures contradict the capacity-adjusted calculation as a universal native relationship, so it is documented only as a frozen v67 approximation.
 
 ## `0x1909` — zero / unresolved
 
@@ -336,17 +336,25 @@ That relationship is much stronger than the precise physical name of the fine qu
 
 Frozen v67 also transmits eight zero bytes. The wire behaviour is **Capture-confirmed**. Its semantic purpose is **Unresolved**. It may be an unused extension slot, a field populated only in conditions not captured, or a slot used by another model or firmware version; none of those possibilities is promoted to a confirmed role.
 
+## Newer-family `0x1910`–`0x1919`
+
+The extension is absent from the audited old EP12 captures and present after `0x1909` in every observed complete normal main response from EP12 Plus and CQ7. No new request selector was observed. Passive ordering does not prove an internal scheduler implementation.
+
+EP12 Plus carries `EP12` in `0x1910` and `EP12 Plus (w)` across `0x1912` + `0x1913`; `(w)` remains **Unresolved**. Its `0x1915`/`0x1916` contain family-specific fixed and monotonic seconds-like values whose uptime/runtime interpretation is **Strongly inferred**. CQ7 has spaces/zero padding in `0x1910`–`0x1914`, an exact 3,157/3,157 cross-frame structure in `0x1915`, and zero `0x1916`. The CQ7 layout does not apply to EP12 Plus. In both newer captures, `0x1917`–`0x1919` are zero and their purpose is **Unresolved**.
+
+Frames `0x190A`–`0x190F` were not observed, so no payloads or scheduler positions are assigned. Frozen v67 does not transmit the extension and already demonstrated compatibility on the tested KH9 without it. Whether newer inverters or manager firmware require it remains **Unresolved**.
+
 ## Cross-frame model relationships
 
 | Relationship | What is established | Evidence status |
 | --- | --- | --- |
 | `0x1905` byte 4 = `floor(0x1906 parameter B / 10)` | Raw 970 and 977 both produce coarse 97 | **Capture-confirmed**; parser relationship **Firmware-supported** |
-| `0x1905` byte 5 = `floor(0x1907 second state / 10)` | Fine second state feeds the coarse byte | **Capture-confirmed** and **Firmware-supported** |
-| `0x1905` byte 6 = `floor(0x1908 fine state / 10)` | Fine capacity-adjusted state feeds the coarse byte | **Capture-confirmed** and **Firmware-supported** |
+| `0x1905` byte 5 ≈ `floor(0x1907 second state / 10)` | Strong coarse/fine association | Not universal: one EP12 Plus exception; CQ7 matches strongly; exact in v67 |
+| `0x1905` byte 6 ≈ `floor(0x1908 second LE32 / 10)` | Strong coarse/fine association | Not universal: 42 EP12 Plus exceptions and an older startup exception; CQ7 matches strongly; exact in v67 |
 | `0x1873` bytes 6–7 = `0x1900` bytes 2–3 | Same installed nominal energy at 10 Wh/count | **Capture-confirmed**; field boundaries **Firmware-supported** |
-| `0x1903` bytes 6–7 = coarse form of the same nominal energy | Installed nominal energy at 200 Wh/count | **Capture-confirmed**; parser role **Firmware-supported** |
+| Native `0x1903` bytes 6–7 = `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)` | SOC-scaled nominal energy at 0.1 kWh/count | **Capture-confirmed**, 14,296/14,296 comparable responses |
 | Single/dual `0x1900` energy | Raw 1152 becomes 2304 | **Capture-confirmed** system aggregation |
-| Single/dual `0x1903` energy | Raw 57 becomes 115 after coarse quantisation | **Capture-confirmed** system aggregation |
+| Historical single/dual `0x1903` values | Raw 57 and 115 were produced at fixed 50% SOC | Historical ambiguity resolved by later varying-SOC captures |
 | Native `0x1900` bytes 0–1 versus system energy fields | Capacity-related value appears per-unit while energy fields aggregate | **Capture-confirmed** in available EP12 evidence; universal scope **Provisional** |
 
 These relationships explain why apparently redundant values can coexist: the manager receives fine and coarse forms, per-unit and system-level quantities, and multiple internal model-state estimates. They do not prove the official Fox name of every consumer variable.
@@ -390,6 +398,9 @@ Frozen v67 uses a fixed parameter B value of 970. It therefore does not necessar
 | `0x1878` byte 4 is an independent charging flag | The manager parses bytes 4–7 as one 32-bit field; longer capture behaviour establishes the final throughput meaning | Structure **Firmware-supported**; meaning **Capture-confirmed** |
 | `0x1879` is eight unused or reserved bytes | The manager parses two 32-bit fields, and the first field progresses during genuine charging | **Firmware-supported** plus **Capture-confirmed** |
 | 970 and 977 are simple discharge/charge states | They persist across direction changes, change slowly with model state and have a coarse cross-frame relationship to `0x1905` byte 4 | **Capture-confirmed** behaviour; **Firmware-supported** relationship |
+| `0x1903` is universally fixed nominal energy at 200 Wh/count | Later varying-SOC captures match SOC-scaled nominal energy instead | **Capture-confirmed** as disproved |
+| `0x1905` raw 320 is universally a 3.20 V nominal-cell field | CQ7 uses raw 1240 | **Capture-confirmed** as disproved |
+| `0x1908` bytes 0–3 are a simple universal enum and its second LE32 universally follows v67's capacity formula | Richer native forms and newer capture values contradict both claims | **Capture-confirmed** as disproved |
 
 Hardware later supplied an additional rejection: the v66 charged-only `0x1878` experiment did not create Fox's independent Total Charged path. That is a **Hardware/app-confirmed** conclusion rather than a firmware-only finding.
 
@@ -402,6 +413,9 @@ Successful emulation does not require pretending that every native Fox internal 
 - exact native sensor/filter source for `0x1902` word 3;
 - exact official meaning and scale of `0x1906` parameters A and B;
 - exact distinction among the several `0x1905`, `0x1907` and `0x1908` SOC/SOE/model quantities;
+- exact flags/subfields in `0x1908` bytes 0–3;
+- official semantics of family/revision-dependent `0x1915`/`0x1916`;
+- whether newer inverters or manager firmware require `0x1910`–`0x1919`;
 - exact native max/min order and temperature/location packing in `0x1904`;
 - the purpose of `0x1909`;
 - exact manager conversion from `0x1879` cumulative Ah to displayed charged kWh;
@@ -434,8 +448,8 @@ Some fields reproduce native structure closely:
 - `0x1878` preserves the manager-supported field boundaries and sends capture-confirmed absolute throughput;
 - `0x1879` sends the manager-supported two-field directional-capacity structure;
 - `0x1902` preserves four 16-bit words and uses the confirmed discharge-power slot;
-- `0x1903` uses the capture-confirmed 200 Wh installed-energy representation;
-- `0x1905`–`0x1908` preserve the established coarse/fine cross-frame relationships; and
+- `0x1903` uses the earlier nominal-energy `/200` approximation, now disproved as a universal native interpretation;
+- `0x1905`–`0x1908` enforce coarse/fine relationships that remain implementation choices where newer captures contain exceptions; and
 - `0x1909` remains zero.
 
 Other values are generic emulation choices:
@@ -460,6 +474,9 @@ The following reverse-engineering questions remain genuinely unresolved:
 - What are the exact physical meanings and state-transition trigger for `0x1906` parameters A and B?
 - How are the `0x1904` temperature/location codes packed, and what is the decisive native max/min order?
 - What is the semantic distinction among the `0x1905`, `0x1907` and `0x1908` battery-state quantities?
+- What flags/subfields make up the expanded `0x1908` bytes 0–3 container?
+- What are the official, family/revision-specific meanings of `0x1915` and `0x1916`?
+- Do any newer inverters or manager-firmware versions require `0x1910`–`0x1919` for compatibility?
 - What are the exact `0x1901` field types, scales and semantics?
 - What is the purpose of `0x1909`, including whether it becomes non-zero in unobserved fault or service conditions?
 
