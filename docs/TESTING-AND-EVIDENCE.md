@@ -10,7 +10,7 @@ Successful inverter operation alone does not prove the semantic meaning of every
 
 Native and emulated tests answer different questions:
 
-- genuine EP12 CAN captures show what native Fox hardware actually transmitted, how values changed, and how frames were grouped and timed;
+- genuine Fox CAN captures show what native hardware actually transmitted, how values changed, and how frames were grouped and timed;
 - controlled Battery-Emulator hardware tests show how a real FoxESS inverter and app reacted when the implementation transmitted particular values; and
 - the frozen v67 source shows exactly what v67 calculates and sends, but does not by itself prove that a native EP12 calculates the same quantity in the same way.
 
@@ -28,7 +28,7 @@ The principal real-hardware validation setup was:
 | Capacity represented during the relevant v67 tests | Approximately 35 kWh | **Hardware/app-confirmed** configuration and app-threshold context |
 | User-visible validation | FoxESS app and its Battery Details page, backed by the real inverter/cloud path | **Hardware/app-confirmed** |
 | Power-flow tests | Real charging, real discharging, and charge/discharge transitions | **Hardware/app-confirmed** |
-| Native reference | Genuine Fox EP12 CAN captures, including single-unit and dual-unit observations | **Capture-confirmed** |
+| Native reference | Genuine Fox captures covering old single/dual EP12, EP12 Plus and CQ7 | **Capture-confirmed** |
 
 The Nissan Leaf pack was the physical test battery, not a protocol dependency. The FoxESS EP implementation is intended to remain battery-agnostic. Frozen v67 consumes generic Battery-Emulator datalayer values for battery state, limits, permissions, faults, capacity, voltage, current, cell measurements and temperature. It does not require Leaf-specific structures, a fixed 40 kWh capacity, a 96-cell layout or Leaf-only temperature data.
 
@@ -39,7 +39,7 @@ The approximately 35 kWh value describes the capacity represented in the relevan
 | Evidence class | What it can prove | What it cannot prove by itself |
 | --- | --- | --- |
 | **Hardware/app-confirmed** | That the physical inverter accepted a protocol state or field, contactors and power flow operated, a displayed value moved or held during a controlled test, or the app reacted to a deliberate change | The official Fox field name, the complete internal calculation path, or behaviour on every inverter and firmware version |
-| **Capture-confirmed** | Genuine EP12 wire values, byte boundaries, transitions, scale relationships, request/response structure and timing seen in the capture | How the inverter would react to an isolated artificial value that was not present in the capture, or behaviour outside the captured operating range |
+| **Capture-confirmed** | Genuine Fox wire values, byte boundaries, transitions, scale relationships, request/response structure and timing seen in the capture | How the inverter would react to an isolated artificial value that was not present in the capture, or behaviour outside the captured operating range |
 | **Firmware-supported** | Parsing boundaries, internal relationships and code paths supported by manager-firmware analysis | Official variable names, a complete native algorithm, or real-world behaviour without corroborating capture or hardware evidence |
 | Frozen v67 source fact | Exactly what the frozen implementation calculates, gates and transmits | That a native EP12 uses the identical calculation or that Fox officially defines the field in the same terms |
 | **Strongly inferred** | A conclusion supported by multiple independent observations whose structure and behaviour agree | A missing decisive native transition or isolated hardware proof |
@@ -49,7 +49,7 @@ The approximately 35 kWh value describes the capacity represented in the relevan
 Evidence is weighted in this order:
 
 1. controlled real hardware/app behaviour;
-2. genuine EP12 CAN captures;
+2. genuine Fox CAN captures;
 3. manager-firmware analysis;
 4. frozen v67 source facts; and
 5. historical comments and earlier theories.
@@ -69,7 +69,7 @@ The version labels below describe investigation checkpoints rather than formal p
 | v66 | Deliberately test whether `0x1878` bytes 4–7 were Fox's independent Total Charged source by transmitting charged-only Wh | Charge/discharge operation remained functional, but Total Charged continued following the observed fallback relationship | **Hardware/app-confirmed** rejection of charged-only `0x1878` as the independent Total Charged solution | It did not identify the missing direct source and is not the final `0x1878` mapping |
 | v67 | Restore native-style absolute throughput in `0x1878`, add directional cumulative capacity in `0x1879`, and perform the decisive energy/cycle tests | Charging and discharging worked; normal Battery Details values populated; Fox accepted an independent charged path; Total Charged held during a subsequent discharge; Battery Cycles moved `0 → 1` near the expected first v67 threshold | **Hardware/app-confirmed** operation of the frozen checkpoint, the charged side of the `0x1879` path, and the cycle field/display transition; it also retained the capture-backed `0x1878` mapping | It did not directly capture a native `0x1879` discharged transition, prove Fox's exact Ah-to-kWh conversion, prove Fox's native cycle formula, or solve counter persistence |
 
-The matching v67 interpretation of `0x1879` bytes 4–7 as cumulative discharged capacity remains **Strongly inferred** pending a sufficiently long native discharge capture.
+At the time of the v67 hardware work, the matching interpretation of `0x1879` bytes 4–7 as cumulative discharged capacity remained **Strongly inferred** because the available old discharge capture was too short. The later cross-model audit described below supplied the missing native progression and promoted it to **Capture-confirmed**. That later evidence does not rewrite what was known when v67 was tested.
 
 ## Operational proof
 
@@ -80,7 +80,7 @@ Frozen v67 has operated as a complete virtual EP battery on the principal test i
 - contactors close and their active power-path state is represented;
 - charging operates using the battery's reported post-safety limits;
 - discharging operates using the battery's reported post-safety limits;
-- the app reports the Fox-facing current direction correctly during both charging and discharging;
+- the app reports frozen v67's Fox-facing current direction consistently during both charging and discharging;
 - SOC, voltage, current, temperature and SOH populate in normal operation; and
 - nominal, remaining and energy-related Battery Details values populate on the real inverter/app path.
 
@@ -149,14 +149,31 @@ The decisive native observations include:
 | Native observation | Evidence contribution | Limitation |
 | --- | --- | --- |
 | Startup requests and responses | **Capture-confirmed** the `0x1871` selector structure, response groups and the native startup progression used to organise the standalone implementation | Does not assign a confirmed semantic meaning to every byte in every response |
-| Genuine charge and discharge traffic | **Capture-confirmed** current direction, live transitions and which fields moved or remained fixed during physical power flow | The available discharge portion was much shorter than the charge portion |
+| Genuine charge and discharge traffic | **Capture-confirmed** current direction, live transitions and which fields moved or remained fixed during physical power flow | The available old discharge portion was much shorter than the charge portion |
 | Continuous dual-EP12 operating capture | Supplied a connected startup, light-discharge, charge and later discharge reference across a changing operating state | It represents one native installation and captured operating range, not all firmware or fault conditions |
 | `0x1878` bytes 4–7 | The field progressed to approximately `240` while measured absolute transferred energy was approximately `223 Wh` charged plus `23 Wh` discharged, or `246 Wh` total. This established absolute bidirectional throughput rather than charged-only energy. **Capture-confirmed** | Capture integration, frame update timing and integer resolution prevent an expectation of exact sample-for-sample equality |
 | `0x1879` bytes 0–3 | In the dual-unit charge, the value progressed `0 → 1 → 2 → 3 → 4`, with paired transitions around `79`, `82`, `158` and `164 Wh` of system charge. This strongly establishes charging-only cumulative capacity at `0.1 Ah/count`. **Capture-confirmed** | It does not reveal Fox's exact later Ah-to-kWh conversion in the app |
-| `0x1879` bytes 4–7 | Remained zero through the available approximately `23 Wh` discharge span | The sample was too short to cross the expected first native `0.1 Ah` threshold; the discharged interpretation therefore remains **Strongly inferred** |
-| `0x1900`-series single/dual relationships | Single- and dual-unit comparisons separated per-unit values from system-level capacity/model values. One clear example is the `0x1903` system-energy representation changing from raw `57` for one EP12 to `115` for two, consistent with total system energy being quantised after aggregation. **Capture-confirmed** relationship, with manager decoding **Firmware-supported** | The official physical meaning and full consumer of several model parameters remain **Provisional** or **Unresolved** |
+| `0x1879` bytes 4–7 | Remained zero through the available approximately `23 Wh` discharge span | At this historical evidence stage the sample was too short to cross the expected first native `0.1 Ah` threshold, so the discharged interpretation was only **Strongly inferred**; the later audit resolved it |
+| `0x1900`-series single/dual relationships | Single- and dual-unit comparisons separated per-unit values from system-level capacity/model values. `0x1903` changed from raw `57` for one EP12 to `115` for two. At fixed 50% SOC this appeared consistent with a coarse fixed-energy interpretation. | Later varying-SOC captures disproved that old `0x1903` interpretation and established SOC-scaled nominal energy instead |
 
 The captures should not be reduced to large payload dumps in this document. Their value lies in their provenance, continuity and test context. Original files should be preserved unchanged, while decoding notes and derived calculations should be kept separately. See the repository's [capture documentation](../captures/README.md) for provenance and file-handling guidance.
+
+## Later EP12 Plus / CQ7 cross-model audit
+
+The completed `0x1901`–`0x1919` audit added EP12 Plus and CQ7 to the older single/dual EP12 evidence. It is a later evidence stage and does not retroactively alter the v67-era hardware observations.
+
+| Audit result | Later evidence position |
+| --- | --- |
+| `0x1879` bytes 4–7 progress as cumulative discharged capacity at `0.1 Ah/count` | **Capture-confirmed** by meaningful EP12 Plus progression and independently supported by current integration |
+| Native battery-origin `0x1873` current | **Capture-confirmed** positive while charging and negative while discharging; non-zero EP12/EP12 Plus `0x0C05` uses the same sign |
+| `0x187B` byte 1 | **Capture-confirmed** native map: `0x01` charging, `0x02` discharging, `0x00` idle/no active direction, `0x04` startup/not ready |
+| `0x1903` bytes 6–7 | **Capture-confirmed** as `floor(U16(0x1873,b6-7) × 0x1873 byte4 / 1000)` at `0.1 kWh/count`, matching 14,296/14,296 comparable responses across six capture sets |
+| `0x1905` bytes 0–1 | Model/family-specific: old EP12 raw `320`, CQ7 raw `1240`; the universal 3.20 V interpretation is disproved |
+| `0x1905` bytes 5 and 6 | Strong coarse/fine associations, not universal simultaneous identities: EP12 Plus has one byte-5 exception and 42 byte-6 exceptions; older startup also has a byte-6 exception; CQ7 matches strongly |
+| `0x1908` | Bytes 0–3 are an expanded status/model container with capture forms such as `10 04 80 00` and `10 0C 80 00`; exact flags/subfields remain **Unresolved**. New captures also contradict v67's second-LE32 capacity formula as a universal native relationship |
+| `0x1910`–`0x1919` | Absent on old EP12 and present after `0x1909` in every observed complete normal EP12 Plus/CQ7 main response; family/revision-dependent content, with `0x1917`–`0x1919` all zero and purpose **Unresolved** |
+
+Frames `0x190A`–`0x190F` were not observed. No payload or scheduler position is inferred. Frozen v67 does not transmit `0x1910`–`0x1919` and already demonstrated compatibility on the tested KH9 without them; whether newer inverter/manager firmware requires the extension remains **Unresolved**.
 
 ## Important app observations
 
@@ -165,10 +182,10 @@ The captures should not be reduced to large payload dumps in this document. Thei
 | Real charging with Battery Details populated | Saved screenshot timestamp `2026-08-05 14:13:12`: Status Charging, `9.898 kW`, current `-26 A`, voltage `379 V`, minimum temperature `23.8 °C`, Total Charged `16.40 kWh`, SOH `91%`, Battery Cycles `0` | Confirms end-to-end charging and visible live/battery-detail reporting at that point. It is not, by itself, the decisive proof that Fox had selected the independent charged path. | **Hardware/app-confirmed** |
 | Direct charged-path hold during discharge | Total Discharged `11.20 → 11.50 kWh`; Total Charged `19.40 → 19.40 kWh` | Fox had accepted a charged result independent of continuing physical discharge | **Hardware/app-confirmed** |
 | Stable fallback-ratio observations | `8.90 / 9.67 = 0.920372`; later `9.10 / 9.89 = 0.920121` | Total Charged followed a discharged-derived fallback in that operating region. The approximate `0.9203` relationship is notably consistent with `0.942 × 0.977 = 0.920334`, but that product is not proven to be Fox's literal internal formula. | Fallback **Hardware/app-confirmed**; coefficient relationship **Strongly inferred** |
-| Battery Cycles displayed as one | Saved screenshot timestamp `2026-08-09 18:41:01`: Status Discharging, `5.429 kW`, current `+14 A`, voltage `369 V`, Total Discharged `33.70 kWh`, Total Charged `35.90 kWh`, SOH `91%`, Battery Cycles `1` | Confirms the Fox-facing discharge sign and the first displayed v67 cycle transition near the expected threshold | **Hardware/app-confirmed** |
+| Battery Cycles displayed as one | Saved screenshot timestamp `2026-08-09 18:41:01`: Status Discharging, `5.429 kW`, current `+14 A`, voltage `369 V`, Total Discharged `33.70 kWh`, Total Charged `35.90 kWh`, SOH `91%`, Battery Cycles `1` | Confirms frozen v67's tested app-facing discharge sign and the first displayed v67 cycle transition near the expected threshold | **Hardware/app-confirmed** |
 | Negative daily values after local counter reset | Daily Discharged `-11.80 kWh` with Total Discharged `0.30 kWh`; Daily Charged `-7.40 kWh` with Total Charged `0.33 kWh` | The visible negative values followed a local reset and are consistent with Fox retaining a higher prior cumulative baseline. They demonstrate why volatile cumulative counters are not release-ready. | Visible values **Hardware/app-confirmed**; retained-baseline mechanism **Strongly inferred** from the controlled reset behaviour |
 
-The app's charging and discharging screenshots also demonstrate the Fox-facing current convention: charging is displayed with negative current and discharging with positive current. Battery-Emulator's generic datalayer uses the opposite sign internally, so v67 reverses the sign only for the relevant Fox current fields.
+The app's charging and discharging screenshots demonstrate frozen v67's tested app-facing convention: charging is displayed with negative current and discharging with positive current. Battery-Emulator's generic datalayer uses positive charging and negative discharging, and v67 reverses the sign only for the relevant transmitted Fox current fields. Later genuine Fox captures show that native battery-origin traffic instead uses positive charging and negative discharging. The v67 app result therefore must not be presented as proof of the native battery convention; the discrepancy requires controlled hardware review before any functional change.
 
 ## Selected screenshot evidence
 
@@ -239,11 +256,13 @@ These rejected hypotheses must not be revived as confirmed mappings without new 
 
 The following are genuine limits of the current evidence:
 
-- **Strongly inferred:** the native `0x1879` bytes 4–7 discharged-capacity transition and its `0.1 Ah/count` scale. The existing native discharge span was too short to cross the expected threshold.
 - **Unresolved:** the exact Fox threshold, hysteresis and state logic that selects between direct Total Charged and the fallback result.
 - **Unresolved:** the exact internal conversion from `0x1879` charged Ah into displayed Total Charged kWh.
 - **Unresolved:** whether, and in what order, the observed `0.942` and `0.977` model coefficients participate in Fox's fallback calculation. Their product is consistent with the observed ratio but is not a proved native formula.
-- **Provisional/Unresolved:** the exact physical meaning and official names of several `0x1900`-series model parameters, even where their byte boundaries and numerical relationships are capture- or firmware-supported.
+- **Unresolved:** the internal flags/subfields in the expanded `0x1908` status/model container.
+- **Unresolved:** the official semantics of family/revision-dependent `0x1915`/`0x1916`, including the EP12 Plus monotonic seconds-like values.
+- **Unresolved:** whether newer inverter or manager firmware requires `0x1910`–`0x1919`; tested KH9 compatibility does not require them.
+- **Provisional/Unresolved:** the exact physical meaning and official names of several `0x1900`-series model parameters, even where their byte boundaries and numerical associations are capture- or firmware-supported.
 - **Unresolved:** the persistence and reset epoch of genuine EP12 cumulative energy, capacity and cycle-related data.
 - **Unresolved:** Fox's exact daily baseline, day-boundary and retained-history mechanism after a counter decrease.
 - **Unresolved:** the exact equivalent-cycle algorithm used internally by a native Fox EP12. The source proves only the formula implemented by v67.
@@ -259,7 +278,7 @@ When adding new captures, screenshots or test results to this repository, preser
 - Keep raw captures separate from filtered traces, decoded tables and derived notes.
 - Record the inverter, battery arrangement, relevant firmware versions, emulator hardware and protocol version when known.
 - Record the operating state and approximate SOC/power where useful.
-- Keep genuine native EP12 observations separate from values transmitted by Battery-Emulator.
+- Keep genuine native Fox observations separate from values transmitted by Battery-Emulator, and record model/family/revision where known.
 - Clearly label calculations, ratios and inferred thresholds as derived analysis rather than raw observations.
 - Preserve screenshots in their original form and claim only what they visibly demonstrate.
 - Do not distribute proprietary FoxESS firmware binaries; publish only derived interoperability findings.
@@ -270,7 +289,9 @@ If provenance such as a firmware version or exact test condition is unknown, rec
 
 The evidence now strongly establishes that the standalone FoxESS EP implementation operates on a real FoxESS KH-series installation using Battery-Emulator and a non-Fox physical battery. Startup communication, contactor handling, charging, discharging, core live data, status and limit behaviour work on the tested system.
 
-The directional `0x187A` energy paths are **Hardware/app-confirmed**. The `0x1878` absolute-throughput mapping is **Capture-confirmed** and restored in v67. The `0x1879` charged-capacity path is supported by genuine native progression and is **Hardware/app-confirmed** as Fox's accepted independent charged path; the matching discharged half remains **Strongly inferred** pending direct native transition evidence.
+The directional `0x187A` energy paths are **Hardware/app-confirmed**. The `0x1878` absolute-throughput mapping is **Capture-confirmed** and restored in v67. Both halves of `0x1879` are now **Capture-confirmed** at `0.1 Ah/count`; the charged path is also **Hardware/app-confirmed** as Fox's accepted independent charged path.
+
+Frozen v67 remains the hardware-proven baseline. Its app-facing current sign and `0x187B` direction codes differ from the later native captures, and its `0x1903` and `0x1908` calculations remain earlier implementation approximations. Those fidelity differences are documented separately from the successful KH9 hardware result and have not been changed here.
 
 Fox's Total Charged fallback behaviour is **Hardware/app-confirmed**, while its exact selection logic and coefficient use remain **Unresolved**. The Battery Cycles field/display and the first v67 threshold transition are **Hardware/app-confirmed**, without claiming that Fox's native internal cycle algorithm has been reproduced.
 
