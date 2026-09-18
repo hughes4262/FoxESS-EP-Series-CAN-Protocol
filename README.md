@@ -29,7 +29,7 @@ The available FoxESS support did not yet reproduce the complete EP-Series behavi
 
 The implementation was developed by combining:
 
-- genuine EP12 CAN captures, including startup, idle, charging and discharging;
+- genuine Fox CAN captures covering old single/dual EP12, EP12 Plus and CQ7;
 - analysis of Fox manager-firmware behaviour;
 - comparison with earlier FoxESS CAN research and existing code; and
 - repeated testing on a real inverter, alternative battery and FoxESS app.
@@ -64,9 +64,10 @@ The work identified or materially strengthened several parts of the EP-Series da
 | --- | --- | --- |
 | `0x187A` | Directional cumulative charged and discharged energy | Hardware/app-confirmed |
 | `0x1878` | Individual-unit SOC and absolute charged-plus-discharged throughput | Supported by capture, firmware and implementation evidence |
-| `0x1879` | Directional cumulative charged and discharged capacity | Charged side hardware/app-confirmed; matching discharged side strongly inferred |
+| `0x1879` | Directional cumulative charged and discharged capacity | Both halves capture-confirmed; charged path hardware/app-confirmed |
 | `0x1875` | Equivalent-cycle count | Hardware/app-confirmed from the observed `0` to `1` transition |
 | `0x1900`–`0x1909` | EP capacity, limits, model and state information | Mixed evidence; field-level confidence is recorded in the frame map |
+| `0x1910`–`0x1919` | Newer-family extension, absent on old EP12 and present on audited EP12 Plus/CQ7 | Capture-confirmed presence; family-dependent content and compatibility requirement partly unresolved; not transmitted by frozen v67 |
 
 The [CAN frame map](docs/CAN-FRAME-MAP.md) records the byte order, scaling, signedness and field-by-field confidence. Fields that remain inferred or unresolved are not promoted to confirmed status without new evidence.
 
@@ -76,11 +77,17 @@ v67 maintains separate installation counters and exposes three related views of 
 
 - `0x187A` carries cumulative charged and discharged energy in opposite halves of the frame, at `0.1 kWh` per count.
 - `0x1878` carries unit SOC and absolute energy throughput in Wh, calculated as charged energy plus discharged energy.
-- `0x1879` carries directional cumulative capacity at `0.1 Ah` per count: the charged half is hardware/app-confirmed, while the matching discharged half remains strongly inferred pending direct native capture proof.
+- `0x1879` carries directional cumulative capacity at `0.1 Ah` per count: both halves are capture-confirmed, and the charged half is hardware/app-confirmed as Fox's accepted independent Total Charged path.
 
 These frames are related, but they are not interchangeable. Real hardware testing showed that Fox can use the charged side of `0x1879` as an independent Total Charged path once its plausibility conditions are satisfied. During subsequent discharge, the accepted Total Charged value remained fixed instead of following discharged energy.
 
 The detailed counter relationships, units and test sequence are documented in [Energy counters](docs/ENERGY-COUNTERS.md).
+
+## Native capture versus frozen v67
+
+Later cross-model captures corrected several native interpretations without changing the frozen hardware-proven implementation. Native battery-origin current is positive while charging and negative while discharging, while tested v67/app-facing current has the opposite sign. Native `0x187B` charging/discharging codes are also opposite to v67, native `0x1903` is SOC-scaled nominal energy rather than a universal fixed `/200` value, and newer captures show a richer `0x1908` container. These differences require controlled hardware review and do not invalidate the demonstrated KH9 result.
+
+The `0x1910`–`0x1919` extension is not currently required for compatibility already demonstrated by v67 on the tested KH9. Whether newer inverter or manager firmware requires it remains unresolved; it has not been implemented from documentation evidence alone.
 
 ## Fox Total Charged fallback
 
@@ -119,7 +126,7 @@ Repository claims will use explicit confidence labels:
 | Label | Meaning |
 | --- | --- |
 | **Hardware/app-confirmed** | Observed on the physical inverter, battery and/or FoxESS app |
-| **Capture-confirmed** | Directly observed in a genuine EP12 CAN capture |
+| **Capture-confirmed** | Directly observed in a genuine Fox CAN capture |
 | **Firmware-supported** | Supported by the decoded Fox manager-firmware behaviour |
 | **Strongly inferred** | Multiple evidence sources agree, but direct native proof is still missing |
 | **Unresolved** | Available evidence is insufficient for a reliable mapping |
