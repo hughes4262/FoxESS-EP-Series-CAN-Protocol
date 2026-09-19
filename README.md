@@ -11,17 +11,17 @@ The protocol represents one aggregate virtual EP battery using generic Battery-E
 
 ## Current status
 
-**v67 is the current frozen, hardware-proven development checkpoint.** It has operated on a real FoxESS KH-series inverter and populated the FoxESS app's Battery Details data, but it is not yet a final or upstream Battery-Emulator release.
+**v67 is the frozen, hardware-proven standalone reference checkpoint.** It has operated on a real FoxESS KH-series inverter and populated the FoxESS app's Battery Details data. FoxESS EP-Series support was included in Battery-Emulator v12.5.0; that upstream release is separate from the frozen v67 source documented in this repository, which is not yet a final standalone release.
 
 | Item | Current position |
 | --- | --- |
 | Protocol checkpoint | v67 |
 | Validation | Real inverter, battery, FoxESS cloud/app and CAN testing |
 | Source status | Frozen hardware-proven v67; public documentation complete |
-| Upstream status | Not yet proposed as a final Battery-Emulator integration |
+| Upstream status | FoxESS EP-Series support released in Battery-Emulator v12.5.0; standalone v67 retained as the documented reference |
 | Main release blocker | Persistent cumulative counters across restart and reflash |
 
-The frozen checkpoint is provided for review, evidence-led documentation and future upstream discussion. It should not be described as production-ready until persistence and the remaining release tests are complete.
+The frozen v67 checkpoint is retained as a standalone reference for review and evidence-led documentation. It should not be described as a final standalone release until its remaining release requirements are met.
 
 ## Why this project exists
 
