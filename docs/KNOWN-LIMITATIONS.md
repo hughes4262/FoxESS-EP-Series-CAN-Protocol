@@ -90,6 +90,16 @@ Both `0x1879` halves are now **Capture-confirmed** at `0.1 Ah/count`; EP12 Plus 
 
 These discrepancies do not invalidate the tested v67 interoperability result. They require separate controlled hardware review before any functional code change.
 
+### Historical comments in the frozen v67 source
+
+The frozen source files retain several comments written before the later cross-model audit. These comments describe earlier interpretations and must not be treated as confirmed native Fox protocol definitions:
+
+- `src/FOXESS-EP-CAN.cpp`: comments describing native negative-charging current and the `0x187B` charging/discharging codes differ from the later genuine Fox captures.
+- `src/FOXESS-EP-CAN.cpp`: the `0x1903` fixed `200 Wh/count` interpretation, the universal `0x1905` 3.20 V interpretation, and the simplified `0x1908` state/model descriptions have been superseded or qualified by later capture evidence.
+- `src/FOXESS-EP-CAN.h`: the comment describing `0x1879` as a reserved field is outdated. Both directional capacity fields are now capture-confirmed.
+
+The corrected native interpretations are documented in `CAN-FRAME-MAP.md`. The frozen source is retained unchanged to preserve the hardware-proven v67 checkpoint. Any functional changes require separate review and controlled hardware testing.
+
 ## Total Charged internal algorithm remains unresolved
 
 Hardware testing establishes that:
