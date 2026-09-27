@@ -88,6 +88,35 @@ The tests establish functional operation of the complete protocol. They do not m
 
 Similarly, successful charge and discharge operation shows that the live limits and status architecture is operational as a whole. It is not an isolated proof of the official semantic meaning of every limit or model byte. Field-level claims remain governed by [CAN-FRAME-MAP.md](CAN-FRAME-MAP.md).
 
+## 27 September 2026 KH9 inverter-feedback capture
+
+A later live capture on the principal KH9 / Stark CMR / Nissan Leaf installation added direct evidence for inverter-origin `0x1871` opcode `0x07` in both charge and discharge directions.
+
+The charging samples were recorded late in a forced-grid-charge session, after SOC was high enough for the Leaf BMS charge-power allowance to be reducing. They are therefore useful for frame decoding but **must not** be used by themselves to explain the separate earlier low-SOC charge-throttling observation around 73% SOC. That earlier event remains unresolved.
+
+### Charging sample
+
+- inverter-origin `0x1871 = 07 33 67 FF AA 0F 02 3C`;
+- bytes 2–3 decode as signed little-endian `-153`, or **-15.3 A** at `0.1 A/count`;
+- bytes 4–5 decode as little-endian `4010`, or **401.0 V** at `0.1 V/count`;
+- the corresponding magnitude is approximately **6.14 kW**;
+- a nearby main BMS response advertised `0x1872` charge-current limit `95 00` = **14.9 A**, while `0x1873` reported approximately **400.5 V** and **15.5 A** charging magnitude at 91% SOC;
+- a second inverter sample, `07 33 68 FF AA 0F 02 3C`, moved the current field to **-15.2 A** while voltage remained **401.0 V**.
+
+### Discharging sample
+
+Later, while the same installation was discharging, repeated inverter-origin samples were:
+
+`0x1871 = 07 33 E2 00 27 0F 02 3C`
+
+- bytes 2–3 decode as signed little-endian `+226`, or **+22.6 A**;
+- bytes 4–5 decode as `3879`, or **387.9 V**;
+- the corresponding discharge magnitude is approximately **8.77 kW**;
+- nearby v67 `0x0C05` unit-status current values were in the same approximately **21–22 A** range.
+
+The charge/discharge polarity reversal, stable voltage scaling and independently matching live-current context make the `0x1871/0x07` bytes 2–3 current and bytes 4–5 voltage interpretation **Capture-confirmed** on the tested KH9. Byte 1 and bytes 6–7 remain **Unresolved**.
+
+Frozen v67 does not need to respond to opcode `0x07`; the current implementation only benefits from the generic inverter-alive refresh performed for every received `0x1871`. No functional protocol change is justified by this finding alone.
 ## Energy-counter proof sequence
 
 The energy architecture was established through a sequence of native observations, controlled experiments and rejected hypotheses. The detailed calculations are in [ENERGY-COUNTERS.md](ENERGY-COUNTERS.md); the sequence below records what the hardware tests contributed.

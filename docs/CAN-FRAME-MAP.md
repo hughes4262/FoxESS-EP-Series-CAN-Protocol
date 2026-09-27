@@ -58,7 +58,7 @@ Genuine battery-origin Fox traffic uses the same physical convention in `0x1873`
 - positive = charging
 - negative = discharging
 
-This is **Capture-confirmed**. Non-zero EP12 and EP12 Plus `0x0C05` unit currents use the same sign. CQ7 `0x0C05`–`0x0C08` remained zero in the audited capture, so that unit-frame result is not generalised to CQ7. Inverter-origin `0x1871` opcode `0x07` normally uses the opposite perspective during settled flow: negative while the battery charges and positive while it discharges; magnitudes need not be exact negatives.
+This is **Capture-confirmed**. Non-zero EP12 and EP12 Plus `0x0C05` unit currents use the same sign. CQ7 `0x0C05`–`0x0C08` remained zero in the audited capture, so that unit-frame result is not generalised to CQ7. Inverter-origin `0x1871` opcode `0x07` normally uses the opposite perspective during settled flow: negative while the battery charges and positive while it discharges; magnitudes need not be exact negatives. A 27 September 2026 KH9 charge/discharge capture independently matched bytes 2–3 to signed current at `0.1 A/count` and bytes 4–5 to voltage at `0.1 V/count` in both directions: `-15.3 A` at `401.0 V` while charging and `+22.6 A` at `387.9 V` while discharging.
 
 Frozen v67 nevertheless transmits `-reported_current_dA` in `0x1873` and `0x0C05`, subject to readiness gating and `int16` saturation. Its app-facing result on the tested KH9 is therefore negative while charging and positive while discharging, and that behaviour is **Hardware/app-confirmed**. The native/v67 discrepancy requires controlled hardware review; this documentation correction does not change functional code. Energy and capacity accumulation continues to use the generic datalayer direction and must not be reversed.
 
@@ -91,6 +91,7 @@ The `10 ms` value is a minimum gate between batches on the same response path, n
 | Byte 0 `0x05` | Serial fragments | `0x1881`, `0x1882`, and `0x1883` together after the 10 ms gate. |
 | Byte 0 `0x03` | Timestamp/keepalive form | Recognised; no reply. The source comment describes a 6 s cadence and bytes 2–7 as `YY MM DD hh mm ss`. |
 | Byte 0 `0x02` | Acknowledgement form | Recognised; no reply. |
+| Byte 0 `0x07` | Live inverter DC/battery feedback | Frozen v67 has no dedicated `0x07` handler; receiving it still refreshes the inverter-alive timer. No battery reply is generated. |
 
 The main BMS response order is fixed by v67:
 
@@ -108,7 +109,7 @@ The dynamic/mixed tables below describe values after `update_values()` has popul
 
 | CAN ID | Direction | DLC | Main role | Dynamic/static | Overall confidence |
 |---|---|---:|---|---|---|
-| `0x1871` | Inverter → battery | 8 | Multiplexed request, timestamp, acknowledgement, and inverter-alive traffic | Dynamic | Capture-confirmed structure; Unresolved selector metadata |
+| `0x1871` | Inverter → battery | 8 | Multiplexed request, timestamp, acknowledgement, inverter-alive and live inverter DC feedback traffic | Dynamic | Capture-confirmed structure and bidirectional `0x07` current/voltage; Unresolved remaining selector metadata |
 | `0x1872` | Battery → inverter | 8 | Voltage and current limits | Dynamic | Capture-confirmed |
 | `0x1873` | Battery → inverter | 8 | Live pack voltage/current/SOC and nominal energy | Mixed | Capture-confirmed; Hardware/app-confirmed operation |
 | `0x1874` | Battery → inverter | 8 | Temperature extrema plus two position-like fields | Dynamic | Capture-confirmed temperatures; Provisional positions |
@@ -146,7 +147,10 @@ The dynamic/mixed tables below describe values after `update_values()` has popul
 | 0 | `uint8` opcode | — | Dispatches recognised forms `0x01`, `0x02`, `0x03`, and `0x05` | Request/message-class selector | Capture-confirmed | Any other value only refreshes the inverter-alive timer. |
 | 4 when byte 0 = `0x01` | `uint8` selector | — | `0x00` main info; `0x01` unit status; `0x02` cell voltages; `0x04` temperatures | Requested data group | Capture-confirmed | v67 ignores unrecognised selector values. |
 | 2–7 when byte 0 = `0x03` | Six bytes | Calendar components | No response | `YY MM DD hh mm ss` timestamp | Capture-confirmed for observed layout | Byte 1 in this form is not decoded by v67. |
-| 1–3, 5–7 in request forms | Raw bytes | — | Not decoded | Request metadata/addressing | Unresolved | Do not assign names from the example payloads alone. |
+| 2–3 when byte 0 = `0x07` | `int16` LE | `0.1 A/count` | Not decoded | Inverter-origin live battery/DC current | Capture-confirmed | Uses the inverter perspective during settled flow. KH9 examples: `67 FF` = `-153` = `-15.3 A` while charging; `E2 00` = `+226` = `+22.6 A` while discharging. |
+| 4–5 when byte 0 = `0x07` | `uint16` LE | `0.1 V/count` | Not decoded | Inverter-origin live battery/DC voltage | Capture-confirmed | KH9 examples: `AA 0F` = `4010` = `401.0 V` while charging; `27 0F` = `3879` = `387.9 V` while discharging. |
+| 1, 6–7 when byte 0 = `0x07` | Raw bytes | — | Not decoded | Status/metadata | Unresolved | Both tested KH9 directions retained byte 1 `0x33` and bytes 6–7 `02 3C`; do not assign semantics without further evidence. |
+| 1–3, 5–7 in other request forms | Raw bytes | — | Not decoded | Request metadata/addressing | Unresolved | Do not assign names from the example payloads alone. |
 
 Receiving any `0x1871` refreshes `CAN_inverter_still_alive`. Frozen v67 reads selector bytes without an explicit local DLC check; its CAN integration supplies the 8-byte frame object documented here.
 
